@@ -437,7 +437,7 @@ fn command_list(app: &mut SoundApp, p: &Value) -> Value {
 
 /// Dispatch one control method to commands, inspection, menus or queued scripted input. Methods that need a UI pass
 /// return `None` and reply later; everything else returns the reply for [`drain`] to send.
-fn handle(app: &mut SoundApp, ctx: &egui::Context, req: &ControlRequest) -> Option<Value> {
+pub(crate) fn handle(app: &mut SoundApp, ctx: &egui::Context, req: &ControlRequest) -> Option<Value> {
     let p = &req.params;
     let f = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0) as f32;
     let pos = egui::pos2(f("x"), f("y"));
@@ -456,6 +456,7 @@ fn handle(app: &mut SoundApp, ctx: &egui::Context, req: &ControlRequest) -> Opti
         "session.inspect" | "document.inspect" => {
             ok(soundcraft_engine::inspect::session(&app.engine, p.get("detail").and_then(Value::as_str) == Some("full")))
         }
+        "ui.elements" => ok(crate::assistant::elements(app)),
         "ui.inspect" => {
             let mut v = app.inspect(ctx);
             v["edit_layout"] = json!(app.edit_layout);

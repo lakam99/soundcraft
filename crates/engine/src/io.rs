@@ -937,29 +937,56 @@ fn read_bundle(bytes: &[u8], limits: BundleLimits) -> Result<(String, std::colle
     Ok((text, files))
 }
 
-/// The record-enabled audio tracks, each with the input channels it records (those its input
-/// route names, "In 3" → 2, wrapped to the device's `input_channels`) and a new take file
-/// `<track>_<NN>.wav` in the `Audio Files` of the session's folder (`unsaved_dir` until it is saved).
-pub fn plan_takes(e: &Engine, unsaved_dir: &Path, input_channels: usize) -> Vec<(TrackId, Vec<usize>, PathBuf)> {
+/// Plan all armed audio tracks before opening any files. Unavailable inputs must never wrap
+/// onto another microphone, and a failed plan leaves the session and transport untouched.
+pub fn plan_takes(e: &Engine, unsaved_dir: &Path, input_channels: usize) -> std::result::Result<Vec<(TrackId, Vec<usize>, PathBuf)>, String> {
     let dir = e.path.as_deref().and_then(|p| Path::new(p).parent()).unwrap_or(unsaved_dir);
     let s = e.session();
-    let take_no = s.sources.len() + 1;
+    let take_no = s.sources.len().saturating_add(1);
     s.tracks
         .iter()
         .filter(|t| t.mixer.record_arm && t.kind == TrackKind::Audio && !t.inactive)
         .map(|t| {
-            let first = match &t.mixer.input {
-                soundcraft_model::Route::Hardware(h) => {
-                    h.trim_start_matches("In ").split(['-', ' ']).next().and_then(|n| n.parse::<usize>().ok()).map_or(0, |n| n.saturating_sub(1))
-                }
-                _ => 0,
-            };
-            let inputs = (0..t.channels()).map(|k| first.saturating_add(k) % input_channels.max(1)).collect();
-            let file = |n: usize| dir.join("Audio Files").join(format!("{}_{n:02}.wav", sanitize_name(&t.name)));
-            let path = (take_no..take_no + 1_000).map(file).find(|p| !p.exists()).unwrap_or_else(|| file(take_no));
-            (t.id, inputs, path)
+            let inputs = (0..t.channels())
+                .map(|k| {
+                    s.input_channel(&t.mixer.input, k).filter(|p| *p < input_channels).ok_or_else(|| {
+                        format!(
+                            "{}: input channel {} is disconnected or unavailable on this {}-input device. Open I/O Setup to map the track input.",
+                            t.name,
+                            k + 1,
+                            input_channels
+                        )
+                    })
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            let path = (take_no..take_no.saturating_add(1_000))
+                .map(|n| dir.join("Audio Files").join(format!("{}_{n:02}.wav", sanitize_name(&t.name))))
+                .find(|p| !p.exists())
+                .ok_or_else(|| format!("{}: no unused take filename", t.name))?;
+            Ok((t.id, inputs, path))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod input_plan_tests {
+    use super::*;
+    use soundcraft_model::{ChannelFormat, Route};
+    #[test]
+    fn unavailable_channels_fail_before_creating_files() {
+        let mut e = Engine::default();
+        let id = e.session_mut().add_track(TrackKind::Audio, ChannelFormat::Mono, Some("Mic"));
+        let track = e.session_mut().track_mut(id).unwrap();
+        track.mixer.record_arm = true;
+        track.mixer.input = Route::Hardware("In 3".into());
+        let before = e.session().clone();
+        assert!(plan_takes(&e, Path::new("unused"), 2).unwrap_err().contains("Mic"));
+        assert_eq!(e.session(), &before);
+        e.session_mut().track_mut(id).unwrap().mixer.input = Route::Hardware("In 2".into());
+        assert_eq!(plan_takes(&e, Path::new("unused"), 2).unwrap()[0].1, vec![1]);
+        e.session_mut().track_mut(id).unwrap().mixer.input = Route::None;
+        assert!(plan_takes(&e, Path::new("unused"), 2).is_err());
+    }
 }
 
 #[cfg(test)]

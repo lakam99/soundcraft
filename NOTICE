@@ -3,9 +3,8 @@ Copyright (c) 2026 ArtCraft Team and the SoundCraft contributors.
 Licensed under the MIT License or the Apache License, Version 2.0, at your option
 (LICENSE-MIT, LICENSE-APACHE).
 
-The ArtCraft name, wordmark and logos in docs/brand/ are trademarks of the ArtCraft Team. They are
-not open source and are not covered by the license above; their terms are in
-docs/brand/LICENSE-brand.txt.
+This independent fork excludes the restricted ArtCraft wordmark and logo assets.
+Original authorship and open-source notices are retained.
 
 Third-party material
 
@@ -317,3 +316,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Shared Craft AI Chat (dependency)
+--------------------------------
+Craft AI Chat 0.2.0 is used under MIT OR Apache-2.0, pinned in Cargo.lock.
+The package includes its licenses, NOTICE and Markdown dependency notices under
+licenses/craft-ai-chat/.
+
+Symphonia (existing dependency, unmodified)
+-----------------------------------------
+SoundCraft's existing Symphonia 0.6.1 audio readers are distributed under MPL-2.0.
+The full license accompanies this notice as licenses/symphonia-LICENSE.txt.
+Source for these unmodified crates is available from the exact versions pinned
+in Cargo.lock, including https://crates.io/crates/symphonia/0.6.1 and the
+symphonia-* crates at that version. Upstream: https://github.com/pdeljanov/Symphonia.

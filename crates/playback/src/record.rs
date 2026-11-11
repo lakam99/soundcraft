@@ -191,20 +191,20 @@ where
     )
 }
 
-/// The input configuration at `rate` when the device offers one: the best sample format first,
-/// then the most channels (so a stereo interface is preferred over a mono one). `None` lets the
+/// The input configuration at `rate`: expose all usable hardware channels first, then prefer
+/// the sample format. A narrow float stream must not hide ports offered by an integer stream. `None` lets the
 /// caller use the device's default input configuration (the mix resamples when the rates differ).
 fn pick_input_config(configs: &[cpal::SupportedStreamConfigRange], rate: u32) -> Option<cpal::SupportedStreamConfig> {
     configs
         .iter()
         .filter_map(|c| {
             let rank = crate::devices::format_rank(c.sample_format())?;
-            if !c.contains_rate(rate) {
+            if !c.contains_rate(rate) || !(1..=256).contains(&c.channels()) {
                 return None;
             }
             c.try_with_sample_rate(rate).map(|config| (rank, std::cmp::Reverse(c.channels()), config))
         })
-        .min_by_key(|(rank, channels, _)| (*rank, *channels))
+        .min_by_key(|(rank, channels, _)| (*channels, *rank))
         .map(|(_, _, config)| config)
 }
 
@@ -220,8 +220,8 @@ impl Recorder {
     #[cfg(not(target_os = "freebsd"))]
     pub fn open_with(audio: &crate::AudioConfig) -> Result<Recorder, String> {
         use cpal::traits::{DeviceTrait, StreamTrait};
-        let host = crate::devices::host(audio);
-        let device = crate::devices::device(&host, audio.input.as_deref(), false).ok_or("no audio input device")?;
+        let host = crate::devices::input_host(audio)?;
+        let device = crate::devices::input_device(&host, audio.input.as_deref())?;
         let name = crate::devices::device_name(&device).unwrap_or_else(|| "Input".into());
         // At the chosen rate when the device offers it, so input and output run together: the
         // best format first, then the most channels.
@@ -231,14 +231,7 @@ impl Recorder {
             Some(c) => c,
             None => {
                 let d = device.default_input_config().map_err(|e| e.to_string())?;
-                // cpal 0.18's default can name a format these callbacks do not decode (I24, F64);
-                // open the same rate and channels in a format they do.
-                if crate::devices::format_rank(d.sample_format()).is_some() {
-                    d
-                } else {
-                    crate::devices::supported_format_config(&configs, d.sample_rate(), d.channels())
-                        .ok_or_else(|| format!("unsupported input sample format {:?}", d.sample_format()))?
-                }
+                pick_input_config(&configs, d.sample_rate()).ok_or_else(|| "no supported input format at the device default rate".to_string())?
             }
         };
         let format = cfg.sample_format();
@@ -247,7 +240,13 @@ impl Recorder {
         }
         let mut config = cfg.config();
         config.buffer_size = crate::devices::buffer_size(audio.buffer_size, cfg.buffer_size());
-        let channels = usize::from(config.channels).max(1);
+        if !(8_000..=768_000).contains(&config.sample_rate) {
+            return Err("input sample rate is outside 8–768 kHz".into());
+        }
+        let channels = usize::from(config.channels);
+        if !(1..=256).contains(&channels) {
+            return Err("input device channel count must be 1–256".into());
+        }
         let ring = CaptureRing::new((config.sample_rate as usize).saturating_mul(channels * RING_SECONDS).min(1 << 25));
         let shared = Arc::new(Shared::new(ring));
         let monitor = InputRing::new(usize::from(config.channels), config.sample_rate);
@@ -281,6 +280,9 @@ impl Recorder {
     pub fn arm(&mut self, takes: Vec<(TrackId, Vec<usize>, PathBuf)>) -> Result<(), String> {
         if self.writer.is_some() {
             return Err("already recording".into());
+        }
+        if takes.iter().any(|(_, ports, _)| ports.is_empty() || ports.len() > 16 || ports.iter().any(|p| *p >= self.channels)) {
+            return Err("recording input mapping is unavailable on this device".into());
         }
         let takes =
             takes.into_iter().map(|(id, inputs, path)| TakeWriter::create(id, inputs, path, self.sample_rate)).collect::<Result<Vec<_>, _>>()?;
@@ -524,6 +526,26 @@ mod tests {
 
     /// A stalled armed input, a panicking callback and a lost device all surface as `Trouble`; a quiet input that is
     /// not recording does not.
+    #[test]
+    fn full_interface_channel_count_wins_over_a_narrow_float_default() {
+        let range = |n, format| cpal::SupportedStreamConfigRange::new(n, 48_000, 48_000, cpal::SupportedBufferSize::Unknown, format);
+        let formats = [range(2, cpal::SampleFormat::F32), range(16, cpal::SampleFormat::I32)];
+        let config = pick_input_config(&formats, 48_000).unwrap();
+        assert_eq!(config.channels(), 16);
+        assert_eq!(config.sample_format(), cpal::SampleFormat::I32);
+    }
+
+    #[test]
+    fn invalid_input_mapping_is_rejected_before_any_take_file_is_created() {
+        let shared = Arc::new(Shared::new(CaptureRing::new(64)));
+        let mut r = recorder(&shared);
+        let dir = std::env::temp_dir().join(format!("soundcraft-invalid-mapping-{}", std::process::id()));
+        let path = dir.join("must-not-exist.wav");
+        assert!(r.arm(vec![(TrackId(1), vec![0], dir.join("valid.wav")), (TrackId(2), vec![1], path)]).is_err());
+        assert!(!dir.exists(), "preflight must precede creation of every take, including valid tracks");
+        assert!(!shared.armed.load(Ordering::Acquire));
+    }
+
     #[test]
     fn a_bug_a_stall_or_a_lost_device_is_trouble() {
         let shared = Arc::new(Shared::new(CaptureRing::new(64)));

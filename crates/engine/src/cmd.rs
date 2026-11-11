@@ -19,6 +19,7 @@ mod event;
 mod event_more;
 mod file;
 mod health;
+mod inputs;
 mod instrument;
 mod midi;
 mod mix;
@@ -153,6 +154,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(auto_rename::specs());
         v.extend(event_more::specs());
         v.extend(setup_more::specs());
+        v.extend(inputs::specs());
         v.extend(clap::specs());
         v.extend(vst3::specs());
         v.extend(surround::specs());

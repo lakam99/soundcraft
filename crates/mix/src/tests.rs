@@ -1300,3 +1300,42 @@ fn consolidate_many_tiny_effect_clips_stays_fast() {
     assert!((out[0][1000] - 0.5 * db_to_gain(-6.0)).abs() < 1e-6);
     assert_eq!(out[0][1001], 0.0);
 }
+
+#[test]
+fn unavailable_inputs_are_silent_and_named_stereo_uses_the_explicit_lr_ports() {
+    let mut s = Session::default();
+    let t = s.add_track(TrackKind::Audio, ChannelFormat::Stereo, Some("Keys"));
+    s.inputs.push(soundcraft_model::InputPath {
+        name: "Keys input".into(),
+        format: ChannelFormat::Stereo,
+        channels: vec![Some(2), Some(0)],
+        active: true,
+    });
+    let track = s.track_mut(t).unwrap();
+    track.mixer.input_monitor = true;
+    track.mixer.input = Route::Hardware("Keys input".into());
+    let mut mix = MixEngine::new(48_000.0, 512);
+    mix.monitor_only = true;
+    mix.input = vec![vec![0.2; 512], vec![0.4; 512], vec![0.6; 512]];
+    let mut out = vec![vec![0.0; 512]; 2];
+    mix.render(&s, 0, 512, &mut out);
+    assert!((out[0][100] - 0.6).abs() < 1e-4, "left must use hardware channel 3: {}", out[0][100]);
+    assert!((out[1][100] - 0.2).abs() < 1e-4, "right must use hardware channel 1: {}", out[1][100]);
+    mix.input.truncate(2);
+    mix.render(&s, 512, 512, &mut out);
+    assert!(out[0][100].abs() < 1e-6, "missing input 3 must not wrap to input 1");
+    s.track_mut(t).unwrap().mixer.input = Route::None;
+    mix.render(&s, 1024, 512, &mut out);
+    assert!(out.iter().flatten().all(|x| x.abs() < 1e-6));
+}
+
+#[test]
+fn missing_input_stream_never_substitutes_previously_recorded_clip_audio() {
+    let (mut s, t) = session_with_dc(0.5, 4800);
+    s.track_mut(t).unwrap().mixer.input_monitor = true;
+    let mut mix = MixEngine::new(48_000.0, 512);
+    assert!(mix.input.is_empty());
+    let mut out = vec![vec![0.0; 512]; 2];
+    mix.render(&s, 0, 512, &mut out);
+    assert!(out.iter().flatten().all(|x| x.abs() < 1e-6), "missing microphone input must not play an old take as if it were live");
+}

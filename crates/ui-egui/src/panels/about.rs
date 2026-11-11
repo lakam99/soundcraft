@@ -24,10 +24,10 @@ pub(super) fn about(app: &mut SoundApp, ctx: &egui::Context) {
             _ => {
                 ui.label(egui::RichText::new("SoundCraft").font(bold(22.0)));
                 ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
-                ui.label("An open-source digital audio workstation from the ArtCraft team.");
+                ui.label("An independent fork of the open-source SoundCraft digital audio workstation.");
                 ui.label("Dual-licensed MIT OR Apache-2.0. Made with Rust and egui.");
-                ui.hyperlink_to("getartcraft.com/apps/soundcraft", "https://getartcraft.com/apps/soundcraft");
-                ui.hyperlink_to("Join us on Discord", "https://discord.gg/artcraft");
+                ui.hyperlink_to("Fork source and releases", "https://github.com/lakam99/soundcraft");
+                ui.hyperlink_to("Upstream SoundCraft", "https://github.com/storytold/soundcraft");
             }
         }
     });

@@ -80,12 +80,15 @@ fn not_found() -> std::io::Error {
     std::io::Error::from_raw_os_error(2)
 }
 
-/// Exit 1 with the refused-connection message for `port`; the OS's text for the refusal differs by platform.
+/// Exit 1 with the unreachable-server diagnostic for the selected port.
 #[track_caller]
-fn assert_refused(got: &Invoke, port: u16) {
+fn assert_unreachable(got: &Invoke, port: u16) {
     assert_eq!((got.code, got.stdout.as_str()), (1, ""));
     let prefix = format!("error: cannot reach SoundCraft at 127.0.0.1:{port}: ");
-    assert!(got.stderr.starts_with(&prefix) && got.stderr.contains(" (os error ") && got.stderr.ends_with(")\n"), "{}", got.stderr);
+    // Closed loopback ports can time out instead of returning an OS refusal. The contract
+    // is the selected endpoint, failure exit code and diagnostic, not the network policy.
+    let connection_error = got.stderr.contains(" (os error ") && got.stderr.ends_with(")\n") || got.stderr.ends_with(": connection timed out\n");
+    assert!(got.stderr.starts_with(&prefix) && connection_error, "{}", got.stderr);
 }
 
 // ---- logging ----
@@ -454,10 +457,10 @@ fn in_place_through_a_link_replaces_the_linked_input() {
 #[test]
 fn app_port_comes_from_the_flag_then_the_environment() {
     let dir = sandbox("app-env");
-    assert_refused(&invoke_env(&dir, &["app", "session.inspect"], Some("1")), 1);
-    assert_refused(&invoke_env(&dir, &["app", "--port", "2", "session.inspect"], Some("1")), 2);
+    assert_unreachable(&invoke_env(&dir, &["app", "session.inspect"], Some("1")), 1);
+    assert_unreachable(&invoke_env(&dir, &["app", "--port", "2", "session.inspect"], Some("1")), 2);
     // The flag wins before the variable is read, so a bad one doesn't matter.
-    assert_refused(&invoke_env(&dir, &["app", "--port", "2", "session.inspect"], Some("abc")), 2);
+    assert_unreachable(&invoke_env(&dir, &["app", "--port", "2", "session.inspect"], Some("abc")), 2);
 }
 
 #[test]
@@ -468,7 +471,7 @@ fn app_takes_an_empty_port_variable_as_unset() {
     }
     let dir = sandbox("app-env-empty");
     for empty in ["", "  "] {
-        assert_refused(&invoke_env(&dir, &["app", "session.inspect"], Some(empty)), 7979);
+        assert_unreachable(&invoke_env(&dir, &["app", "session.inspect"], Some(empty)), 7979);
     }
 }
 

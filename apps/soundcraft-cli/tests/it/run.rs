@@ -53,12 +53,15 @@ fn not_found() -> std::io::Error {
     std::io::Error::from_raw_os_error(2)
 }
 
-/// Exit 1 with the refused-connection message for `port`; the OS's text for the refusal differs by platform.
+/// Exit 1 with the unreachable-server diagnostic for the selected port.
 #[track_caller]
-fn assert_refused(got: &Invoke, port: u16) {
+fn assert_unreachable(got: &Invoke, port: u16) {
     assert_eq!((got.code, got.stdout.as_str()), (1, ""));
     let prefix = format!("error: cannot reach SoundCraft at 127.0.0.1:{port}: ");
-    assert!(got.stderr.starts_with(&prefix) && got.stderr.contains(" (os error ") && got.stderr.ends_with(")\n"), "{}", got.stderr);
+    // Closed loopback ports can time out instead of returning an OS refusal. The contract
+    // is the selected endpoint, failure exit code and diagnostic, not the network policy.
+    let connection_error = got.stderr.contains(" (os error ") && got.stderr.ends_with(")\n") || got.stderr.ends_with(": connection timed out\n");
+    assert!(got.stderr.starts_with(&prefix) && connection_error, "{}", got.stderr);
 }
 
 #[test]
@@ -383,14 +386,14 @@ fn plugins_lists_one_line_per_plugin() {
 }
 
 #[test]
-fn app_reports_a_refused_connection_and_checks_arguments_first() {
+fn app_reports_an_unreachable_connection_and_checks_arguments_first() {
     for args in [
         vec!["app", "--port", "1", "session.inspect"],
         vec!["app", "--port=1", "session.inspect"],
         vec!["app", "session.inspect", "--port", "1"],
         vec!["app", "--port", "1", "session.inspect", "{}"],
     ] {
-        assert_refused(&invoke(&args), 1);
+        assert_unreachable(&invoke(&args), 1);
     }
     assert_usage_error(
         &invoke(&["app", "--port", "1", "session.inspect", "{bad"]),

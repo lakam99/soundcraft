@@ -417,6 +417,8 @@ pub fn recall_configuration(app: &mut SoundApp, saved: &Value) -> Result<(), Str
     crate::docking::validate(&st.docking).and_then(|()| crate::docking::validate_mix(&st.mix_docking))?;
     st.configurations = app.ui.configurations.clone();
     st.theme = app.ui.theme;
+    st.audio = app.ui.audio.clone();
+    st.ai = app.ui.ai.clone();
     st.show_preferences = app.ui.show_preferences;
     st.preferences_page = app.ui.preferences_page;
     st.preferences_window_pos = app.ui.preferences_window_pos;
@@ -443,16 +445,18 @@ fn audio_systems(ctx: &egui::Context, refresh: bool) -> Arc<Vec<AudioSystem>> {
 
 /// The system a config means (its own, else the default one) in an enumeration.
 fn chosen_system<'a>(systems: &'a [AudioSystem], cfg: &AudioConfig) -> Option<&'a AudioSystem> {
-    cfg.system
-        .as_deref()
-        .and_then(|n| systems.iter().find(|s| s.name.eq_ignore_ascii_case(n)))
-        .or_else(|| systems.iter().find(|s| s.is_default))
-        .or(systems.first())
+    match cfg.system.as_deref() {
+        Some(n) => systems.iter().find(|s| s.name.eq_ignore_ascii_case(n)),
+        None => systems.iter().find(|s| s.is_default).or(systems.first()),
+    }
 }
 
 /// The device a config means (by name, else the system default).
 fn chosen_device<'a>(devices: &'a [DeviceInfo], name: Option<&str>) -> Option<&'a DeviceInfo> {
-    name.and_then(|n| devices.iter().find(|d| d.name == n)).or_else(|| devices.iter().find(|d| d.is_default))
+    match name {
+        Some(n) => devices.iter().find(|d| d.name == n),
+        None => devices.iter().find(|d| d.is_default),
+    }
 }
 
 /// Device picker with a Default entry and channel counts, labelled for accessibility.
@@ -605,6 +609,9 @@ pub fn audio_device_command(app: &mut SoundApp, p: &serde_json::Value) -> Result
     let mut cfg = app.ui.audio.clone();
     for (key, slot) in [("system", &mut cfg.system), ("output", &mut cfg.output), ("input", &mut cfg.input)] {
         if let Some(v) = p.get(key) {
+            if !v.is_null() && (!v.is_string() || v.as_str().is_some_and(|s| s.len() > 1024)) {
+                return Err(format!("`{key}` must be a device/system name or null"));
+            }
             *slot = v.as_str().map(str::to_string).filter(|s| !s.is_empty());
             changed = true;
         }
@@ -624,7 +631,8 @@ pub fn audio_device_command(app: &mut SoundApp, p: &serde_json::Value) -> Result
     let device = app.player.as_ref().map(|pl| {
         json!({"name": pl.device_name, "sample_rate": pl.device_rate, "channels": pl.device_channels, "buffer_size": pl.device_buffer, "silent": pl.silent})
     });
-    let mut out = json!({"config": app.ui.audio, "device": device});
+    let input = app.recorder.as_ref().map(|r| json!({"name":r.device_name,"sample_rate":r.sample_rate,"channels":r.channels}));
+    let mut out = json!({"config": app.ui.audio, "device": device, "input_stream":input, "input_paths": app.engine.session().inputs});
     if p.get("list").and_then(Value::as_bool).unwrap_or(false) {
         out["systems"] = json!(soundcraft_playback::devices::audio_systems());
     }
@@ -681,7 +689,17 @@ pub fn setup_audio_command(app: &mut SoundApp, id: &str, p: &serde_json::Value) 
 /// Setup › I/O: busses and output paths.
 pub fn io_setup(app: &mut SoundApp, ctx: &egui::Context) {
     let mut open = app.ui.show_io_setup;
-    win(ctx, &mut open, "I/O Setup", vec2(420.0, 300.0), |ui| {
+    win(ctx, &mut open, "Audio I/O Setup", vec2(800.0, 680.0), |ui| {
+        let systems = audio_systems(ctx, false);
+        let device = chosen_system(&systems, &app.ui.audio).and_then(|s| {
+            if let Some(name) = app.ui.audio.input.as_deref() {
+                s.inputs.iter().find(|d| d.name == name)
+            } else {
+                s.inputs.iter().find(|d| d.is_default)
+            }
+        });
+        super::input_setup::show(app, ui, device.map(|d| (d.name.as_str(), usize::from(d.max_channels))));
+        ui.separator();
         ui.label(egui::RichText::new("Busses").strong());
         let busses: Vec<(String, String)> = app.engine.session().busses.iter().map(|b| (b.name.clone(), b.format.label().to_string())).collect();
         egui::Grid::new("busses").num_columns(3).striped(true).show(ui, |ui| {

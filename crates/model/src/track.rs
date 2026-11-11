@@ -335,7 +335,13 @@ impl Track {
             color,
             height: TrackHeight::Medium,
             active_playlist: 0,
-            mixer: Mixer::new(format),
+            mixer: {
+                let mut mixer = Mixer::new(format);
+                if kind == TrackKind::Audio {
+                    mixer.input = crate::Route::Hardware(if format.channels() == 1 { "In 1".into() } else { format!("In 1-{}", format.channels()) });
+                }
+                mixer
+            },
             automation: Vec::new(),
             view: view.into(),
             hidden: false,

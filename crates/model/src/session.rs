@@ -7,6 +7,10 @@ use crate::{
 };
 use soundcraft_time::{FrameRate, GridScale, GridValue, Range, SampleRate, Samples, TempoMap, TimeFormat};
 
+fn initial_inputs() -> Vec<crate::InputPath> {
+    crate::default_inputs(2)
+}
+
 /// Native session file extension.
 pub const SESSION_EXTENSION: &str = "scraft";
 
@@ -363,6 +367,9 @@ pub struct Session {
     pub videos: Vec<VideoSource>,
     pub busses: Vec<Bus>,
     pub outputs: Vec<OutputPath>,
+    /// Named recording paths; device selection stays in local editor preferences.
+    #[serde(default = "initial_inputs")]
+    pub inputs: Vec<crate::InputPath>,
     pub markers: Vec<MemoryLocation>,
     pub groups: Vec<Group>,
     /// Clip List › Auto Rename schemes, keyed by the ids in [`Clip::auto_name`]. The clips separated
@@ -391,7 +398,7 @@ impl Default for Session {
 }
 
 impl Session {
-    pub const FORMAT_VERSION: u32 = 1;
+    pub const FORMAT_VERSION: u32 = 2;
 
     pub fn new(name: impl Into<String>, sample_rate: SampleRate) -> Self {
         let mut s = Session {
@@ -407,6 +414,7 @@ impl Session {
             sources: Vec::new(),
             videos: Vec::new(),
             busses: Vec::new(),
+            inputs: initial_inputs(),
             outputs: vec![OutputPath { name: "Out 1-2".into(), first_channel: 0, format: ChannelFormat::Stereo }],
             markers: Vec::new(),
             groups: Vec::new(),
@@ -754,6 +762,16 @@ impl Session {
             return Err(SessionError::Version(u32::try_from(ver).unwrap_or(u32::MAX)));
         }
         let mut s: Session = serde_json::from_str(text).map_err(|e| SessionError::Format(e.to_string()))?;
+        if s.format_version < 2 {
+            // Version 1 treated no input as the first hardware channels. Preserve old sessions
+            // explicitly; version 2 can safely distinguish a disconnected track.
+            for t in &mut s.tracks {
+                if t.kind == TrackKind::Audio && t.mixer.input == crate::Route::None {
+                    t.mixer.input = crate::Route::Hardware(if t.channels() == 1 { "In 1".into() } else { format!("In 1-{}", t.channels()) });
+                }
+            }
+            s.format_version = Self::FORMAT_VERSION;
+        }
         s.sanitize();
         s.validate()?;
         Ok(s)
@@ -862,6 +880,21 @@ impl Session {
     fn validate(&self) -> Result<(), SessionError> {
         if self.next_id == u64::MAX {
             return Err(SessionError::Invalid("the session id space is exhausted".into()));
+        }
+        if self.inputs.len() > crate::MAX_INPUT_PATHS {
+            return Err(SessionError::Invalid("too many input paths".into()));
+        }
+        let mut names = std::collections::HashSet::new();
+        for path in &self.inputs {
+            if path.name.trim().is_empty()
+                || path.name.chars().count() > MAX_NAME_CHARS
+                || !names.insert(&path.name)
+                || path.channels.len() != path.format.channels()
+                || path.channels.len() > 16
+                || path.channels.iter().flatten().any(|p| *p >= crate::MAX_INPUT_CHANNELS)
+            {
+                return Err(SessionError::Invalid("invalid or duplicate audio input path".into()));
+            }
         }
         distinct("track", self.tracks.iter().map(|t| t.id.0))?;
         distinct("clip", self.tracks.iter().flat_map(|t| t.playlists.iter().flat_map(|p| p.clips.iter().map(|c| c.id.0))))?;
@@ -1218,7 +1251,7 @@ mod tests {
             assert_eq!(format(t), want, "{t}");
         }
         let mut v = serde_json::to_value(Session::default()).unwrap();
-        for (ver, want) in [(serde_json::json!(2), 2), (serde_json::json!(1u64 << 40), u32::MAX)] {
+        for (ver, want) in [(serde_json::json!(3), 3), (serde_json::json!(1u64 << 40), u32::MAX)] {
             v["format_version"] = ver;
             assert_eq!(Session::from_json(&v.to_string()), Err(SessionError::Version(want)));
         }
@@ -1229,9 +1262,9 @@ mod tests {
         // A newer version is refused even when the rest would not parse.
         assert_eq!(Session::from_json(r#"{"format_version":7,"tracks":5}"#), Err(SessionError::Version(7)));
         // An older or the current version loads as it did.
-        for ver in [0, 1] {
+        for ver in [0, 1, 2] {
             v["format_version"] = serde_json::json!(ver);
-            assert_eq!(Session::from_json(&v.to_string()).map(|s| s.format_version), Ok(ver));
+            assert_eq!(Session::from_json(&v.to_string()).map(|s| s.format_version), Ok(Session::FORMAT_VERSION));
         }
     }
 

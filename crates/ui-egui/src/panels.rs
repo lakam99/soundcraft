@@ -93,3 +93,5 @@ pub fn floating(app: &mut SoundApp, ctx: &egui::Context) {
     about(app, ctx);
     session_info(app, ctx);
 }
+
+mod input_setup;

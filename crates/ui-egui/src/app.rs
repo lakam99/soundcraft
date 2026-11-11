@@ -30,6 +30,8 @@ impl SoundApp {
     /// synthetic-input state.
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
+            assistant: crate::assistant::Runtime::default(),
+            ai_preferences_path: None,
             recent_seen: engine.path.clone(),
             recent_changed: false,
             recent_checked: None,
@@ -173,6 +175,7 @@ impl SoundApp {
         self.last_frame = Some(self.uptime);
         crate::control::expire_gestures(self);
         crate::control::drain(self, ctx);
+        crate::assistant::poll(self, ctx);
         self.note_recent_session();
         self.apply_editor_edits();
         // A multi-pass frame runs this logic once per pass; bounce slices and background-import

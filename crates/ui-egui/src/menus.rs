@@ -10,6 +10,17 @@ use soundcraft_engine::catalog;
 
 /// UI-layer commands: (id, label, catalog path or "", shortcut).
 pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
+    ("ai.chat", "AI Chat", "Window > AI Chat", None),
+    ("ai.settings", "AI Settings", "", None),
+    ("ai.connection", "AI Connection", "", None),
+    ("ai.send", "Send AI Message", "", None),
+    ("ai.stop", "Stop AI", "", None),
+    ("ai.clear", "Clear Chat", "", None),
+    ("ai.status", "AI Status", "", None),
+    ("ai.saveKey", "Remember API Key", "", None),
+    ("ai.loadKey", "Load API Key", "", None),
+    ("ai.forgetKey", "Forget API Key", "", None),
+    ("ai.preferences", "AI Preferences", "", None),
     ("app.checkForUpdates", "Check for Updates…", "", None),
     ("ui.dock", "Arrange Panel", "", None),
     ("ui.dock.reset", "Reset Panel Layout", "Window > Reset Panel Layout", None),
@@ -247,6 +258,7 @@ pub fn tree() -> Vec<MenuNode> {
         insert_path(&mut roots, line);
     }
     insert_path(&mut roots, "Window > Reset Panel Layout");
+    insert_path(&mut roots, "Window > AI Chat");
     // Not in the observed catalog either; Pro Tools lists it right under Identify Sync Point.
     if let Some(clip) = roots.iter_mut().find(|n| n.path == "Clip") {
         let at = clip.children.iter().position(|n| n.path == "Clip > Identify Sync Point").map_or(clip.children.len(), |i| i + 1);
@@ -397,6 +409,7 @@ pub fn item_state(app: &SoundApp, path: &str, id: Option<&str>) -> (bool, bool) 
             Some("setup.preferences") => preferences_menu_enabled(app),
             Some(i)
                 if i.starts_with("window.")
+                    || i.starts_with("ai.")
                     || i.starts_with("view.mix_section")
                     || matches!(i, "audiosuite.process" | "ui.dock" | "ui.dock.reset") =>
             {
@@ -418,6 +431,7 @@ fn preferences_menu_enabled(app: &SoundApp) -> bool {
 fn checked_state(app: &SoundApp, path: &str, id: Option<&str>) -> bool {
     let e = &app.engine.session().edit;
     match id {
+        Some("ai.chat") => app.ui.show_ai_chat,
         Some("options.loop_playback") => e.loop_playback,
         Some("options.loop_record") => e.loop_record,
         Some("options.quickpunch") => e.quickpunch,
@@ -578,6 +592,9 @@ fn wants_dialog(id: &str) -> bool {
 
 /// Handle UI-layer commands. Returns None when `id` is not a UI command.
 pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
+    if let Some(result) = crate::assistant::command(app, id, p) {
+        return Some(result);
+    }
     if matches!(id, "ui.dock" | "ui.dock.reset") {
         return Some(crate::docking::command(app, id, p));
     }

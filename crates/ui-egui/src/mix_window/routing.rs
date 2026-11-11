@@ -11,12 +11,7 @@ pub(crate) fn route_name(app: &SoundApp, r: &Route) -> String {
 }
 
 pub(crate) fn input_name(app: &SoundApp, track: &Track) -> String {
-    if track.kind.has_playlist() && track.mixer.input == Route::None {
-        let channels = track.format.channels();
-        if channels == 1 { "In 1".to_string() } else { format!("In 1-{channels}") }
-    } else {
-        route_name(app, &track.mixer.input)
-    }
+    if track.mixer.input == Route::None { "No input".into() } else { route_name(app, &track.mixer.input) }
 }
 
 /// The input or output menu under `resp`. It closes only on a click outside, so its bus search
@@ -39,11 +34,18 @@ fn route_menu(app: &mut SoundApp, ui: &mut Ui, id: TrackId, input: bool) {
         ui.close();
     }
     if input {
-        for i in 1..=8 {
-            if ui.button(format!("In {i}")).clicked() {
-                let _ = app.run(cmd, json!({"track": id.0, key: format!("In {i}")}));
+        let paths = app.engine.session().inputs.clone();
+        let width = app.engine.session().track(id).map_or(1, Track::channels);
+        for path in paths.iter().filter(|p| p.active && p.channels.len() == width) {
+            let ports = path.channels.iter().map(|p| p.map_or("—".into(), |p| (p + 1).to_string())).collect::<Vec<_>>().join(" / ");
+            if ui.button(format!("{}   ·   {}   ·   {}", path.name, path.format.label(), ports)).clicked() {
+                let _ = app.run(cmd, json!({"track": id.0, key: path.name}));
                 ui.close();
             }
+        }
+        if ui.button("Audio input setup…").clicked() {
+            app.ui.show_io_setup = true;
+            ui.close();
         }
     }
     ui.separator();
@@ -60,7 +62,7 @@ fn route_menu(app: &mut SoundApp, ui: &mut Ui, id: TrackId, input: bool) {
         while busses.contains(&format!("Bus {n}")) || app.engine.session().track_by_name(&format!("Bus {n}")).is_some() {
             n += 1;
         }
-        let _ = app.run(cmd, json!({"track": id.0, key: format!("Bus {n}")}));
+        let _ = app.run(cmd, json!({"track": id.0, key: format!("Bus {n}"), "create_bus": true}));
         ui.close();
     }
 }

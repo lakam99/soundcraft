@@ -27,6 +27,7 @@ pub enum PreferencesPage {
     Midi,
     Collaboration,
     Synchronization,
+    AiChat,
 }
 
 /// Controls when optional interface animation and decoration are reduced.
@@ -72,7 +73,7 @@ impl ReduceVisualEffects {
 }
 
 impl PreferencesPage {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Display,
         Self::Operation,
         Self::Editing,
@@ -82,6 +83,7 @@ impl PreferencesPage {
         Self::Midi,
         Self::Collaboration,
         Self::Synchronization,
+        Self::AiChat,
     ];
 
     /// Returns the page title shown in the tab strip.
@@ -96,6 +98,7 @@ impl PreferencesPage {
             Self::Midi => "MIDI",
             Self::Collaboration => "Collaboration",
             Self::Synchronization => "Synchronization",
+            Self::AiChat => "AI Chat",
         }
     }
 
@@ -111,6 +114,7 @@ impl PreferencesPage {
             Self::Midi => MIDI,
             Self::Collaboration => COLLABORATION,
             Self::Synchronization => SYNCHRONIZATION,
+            Self::AiChat => &[],
         }
     }
 }
@@ -767,9 +771,19 @@ pub fn show(app: &mut SoundApp, ctx: &egui::Context) {
                 .max_height(body_height)
                 .min_scrolled_height(body_height)
                 .auto_shrink([false, false])
-                .show(ui, |ui| page_body(ui, page, &search, &mut draft));
+                .show(ui, |ui| {
+                    if page == PreferencesPage::AiChat {
+                        crate::assistant::settings(app, ui);
+                    } else {
+                        page_body(ui, page, &search, &mut draft);
+                    }
+                });
         } else {
-            page_body(ui, page, &search, &mut draft);
+            if page == PreferencesPage::AiChat {
+                crate::assistant::settings(app, ui);
+            } else {
+                page_body(ui, page, &search, &mut draft);
+            }
         }
         let used_height = ui.cursor().top() - body_top;
         ui.add_space((body_height - used_height).max(0.0));

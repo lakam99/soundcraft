@@ -201,7 +201,15 @@ pub fn specs() -> Vec<CommandSpec> {
                 Ok(json!({"clips": ids}))
             }
         ),
-        cmd!("track.input", "Track Input", [], None, "{tracks?, input: none|bus name|hardware name}", has_selection, |e, p| route(e, p, true)),
+        cmd!(
+            "track.input",
+            "Track Input",
+            [],
+            None,
+            "{tracks?, input: none|named input path|existing bus|In N[-M], create_bus?: false for audio inputs}",
+            has_selection,
+            |e, p| route(e, p, true)
+        ),
         cmd!("track.output", "Track Output", [], None, "{tracks?, output: main|none|bus name}", has_selection, |e, p| route(e, p, false)),
         cmd!("track.timebase", "Track Timebase", [], None, "{tracks?, ticks: bool}", has_selection, |e, p| flag(
             e,
@@ -1018,11 +1026,24 @@ fn route(e: &mut Engine, p: &Value, input: bool) -> Result<Value> {
     let key = if input { "input" } else { "output" };
     let tracks = tracks_required(e, "track.route", p)?;
     let v = str_param(p, key).ok_or_else(|| bad("track.route", format!("`{key}` required")))?.to_string();
-    let create_bus = bool_or(p, "create_bus", true);
+    // Audio input typos must not create silent bus routes. Preserve the established
+    // automatic bus workflow on non-recording tracks (auxes/folders/MIDI).
+    let audio_input = input && tracks.iter().any(|id| e.session().track(*id).is_some_and(|t| t.kind == TrackKind::Audio));
+    // Take writers pin ports when armed. Changing live monitoring alone would make the user
+    // hear one input while the take still records another.
+    if audio_input && e.transport.recording {
+        return Err(bad("track.input", "stop recording before changing track inputs"));
+    }
+    let create_bus = bool_or(p, "create_bus", !audio_input);
     let s = e.session_mut();
-    let mut r = parse_route(s, &v);
+    let named_input = input && s.inputs.iter().any(|x| x.name == v);
+    let mut r = if named_input { Route::Hardware(v.clone()) } else { parse_route(s, &v) };
+    if input && matches!(&r, Route::Hardware(_)) && !named_input && soundcraft_model::legacy_input_channel(&v, 0).is_none() && !create_bus {
+        return Err(bad("track.input", "unknown input; choose a named path in I/O Setup or an existing bus"));
+    }
     if let Route::Hardware(name) = &r
         && create_bus
+        && !named_input
         && !name.to_ascii_lowercase().starts_with("in ")
     {
         let fmt = tracks

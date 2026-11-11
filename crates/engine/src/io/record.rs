@@ -143,9 +143,9 @@ mod record_tests {
         let vox = armed(&mut e, "Vox", "mono", "In 2");
         let gtr = armed(&mut e, "Gtr", "stereo", "In 3-4");
         write_take(&dir.join("Audio Files/Vox_01.wav"), 10);
-        let plan = plan_takes(&e, &dir, 4);
+        let plan = plan_takes(&e, &dir, 4).unwrap();
         assert_eq!(plan, vec![(vox, vec![1], dir.join("Audio Files/Vox_02.wav")), (gtr, vec![2, 3], dir.join("Audio Files/Gtr_01.wav"))]);
-        assert_eq!(plan_takes(&e, &dir, 2)[1].1, vec![0, 1]);
+        assert!(plan_takes(&e, &dir, 2).is_err(), "missing ports must not wrap onto another source");
 
         let session = dir.join("Song.scraft").to_string_lossy().into_owned();
         e.execute("session.save_as", &json!({"path": session})).unwrap();

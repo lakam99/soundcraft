@@ -6,6 +6,9 @@ impl SoundApp {
         if matches!(id, "session.new" | "session.open" | "session.close" | "session.revert") && bounce::refuses_session_switch(self) {
             return Err(self.ui.status.clone());
         }
+        if let Some(r) = crate::assistant::command(self, id, &params) {
+            return r;
+        }
         if let Some(r) = menus::run_ui_command(self, id, &params) {
             return r;
         }

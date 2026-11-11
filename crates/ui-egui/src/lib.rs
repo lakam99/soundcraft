@@ -10,6 +10,8 @@
 pub const UPDATE_APP: craft_update::app::App = craft_update::app::App {
     icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/ai.storyteller.soundcraft.png")),
     accent: Some([0x1f, 0xa5, 0xc9]),
+    repo: "lakam99/soundcraft",
+    developer: "lakam99",
     ..craft_update::suite::SOUNDCRAFT
 };
 
@@ -58,6 +60,11 @@ pub use panels::video_window;
 pub use panels::windows;
 
 mod app;
+#[cfg(not(target_arch = "wasm32"))]
+mod assistant;
+#[cfg(target_arch = "wasm32")]
+#[path = "assistant_web.rs"]
+mod assistant;
 mod services;
 mod state;
 
@@ -124,6 +131,8 @@ pub struct UiState {
     pub undo_levels: usize,
     /// The audio device choice (Setup › Playback Engine), kept with the preferences: per machine.
     pub audio: soundcraft_playback::AudioConfig,
+    pub ai: craft_ai_chat_core::Preferences,
+    pub show_ai_chat: bool,
     /// The Mix window lives in its own native window (Window › Mix in Separate Window); the main
     /// window then always shows Edit.
     pub mix_separate: bool,
@@ -196,6 +205,8 @@ impl Default for UiState {
             reduce_visual_effects: preferences::ReduceVisualEffects::default(),
             undo_levels: 64,
             audio: soundcraft_playback::AudioConfig::default(),
+            ai: craft_ai_chat_core::Preferences::default(),
+            show_ai_chat: false,
             mix_separate: false,
             show_io_setup: false,
             show_shortcuts: false,
@@ -266,6 +277,8 @@ pub enum Gesture {
 }
 
 pub struct SoundApp {
+    assistant: assistant::Runtime,
+    pub ai_preferences_path: Option<std::path::PathBuf>,
     pub engine: Engine,
     /// The session path as of the last frame, and whether the recent list changed since the host
     /// last saved it (see `recent`).

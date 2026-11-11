@@ -162,6 +162,32 @@ pub(crate) fn host(cfg: &AudioConfig) -> cpal::Host {
         })
 }
 
+/// Explicit input selections are strict: silently falling back can capture a different microphone.
+pub(crate) fn input_host(cfg: &AudioConfig) -> Result<cpal::Host, String> {
+    match cfg.system.as_deref() {
+        None => Ok(cpal::default_host()),
+        Some(name) => {
+            let id = cpal::available_hosts()
+                .into_iter()
+                .find(|id| id.name().eq_ignore_ascii_case(name))
+                .ok_or_else(|| format!("audio system `{name}` is unavailable; choose an available input in Audio Device settings"))?;
+            cpal::host_from_id(id).map_err(|e| e.to_string())
+        }
+    }
+}
+
+pub(crate) fn input_device(host: &cpal::Host, name: Option<&str>) -> Result<cpal::Device, String> {
+    use cpal::traits::HostTrait;
+    match name {
+        None => host.default_input_device().ok_or_else(|| "no default audio input device".into()),
+        Some(name) => host
+            .input_devices()
+            .map_err(|e| e.to_string())?
+            .find(|d| device_name(d).as_deref() == Some(name))
+            .ok_or_else(|| format!("input device `{name}` is unavailable; choose an available input in Audio Device settings")),
+    }
+}
+
 /// The named output (or input) device of `host`, else its default device.
 pub(crate) fn device(host: &cpal::Host, name: Option<&str>, output: bool) -> Option<cpal::Device> {
     if let Some(want) = name {
@@ -189,6 +215,14 @@ pub(crate) fn buffer_size(want: Option<u32>, supported: &cpal::SupportedBufferSi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_explicit_missing_input_never_falls_back_to_a_different_microphone() {
+        let config = AudioConfig { system: Some("nonexistent-test-audio-host".into()), ..AudioConfig::default() };
+        assert!(input_host(&config).is_err());
+        let host = cpal::default_host();
+        assert!(input_device(&host, Some("nonexistent-test-microphone-4f6638")).is_err());
+    }
 
     #[test]
     fn config_round_trips_and_tolerates_missing_fields() {
