@@ -3,24 +3,30 @@ use crate::SoundApp;
 use serde_json::json;
 
 pub fn show(app: &mut SoundApp, ui: &mut egui::Ui, device: Option<(&str, usize)>) {
+    crate::assistant::register_area(app, "panel.inputs", ui.max_rect(), ui.ctx(), "Audio inputs");
     ui.heading("Audio inputs");
     let count = device.map_or(0, |(_, n)| n).min(soundcraft_model::MAX_INPUT_CHANNELS);
     ui.horizontal_wrapped(|ui| {
         ui.label(device.map_or("No available input device".into(), |(name, n)| format!("{name} · {n} input channels")));
-        if ui.button("Audio device…").clicked() {
+        let response = ui.button("Audio device…");
+        crate::assistant::register(app, "inputs.device", &response, "Audio device");
+        if response.clicked() {
             app.ui.show_playback_engine = true;
         }
     });
     ui.label("Name your inputs, assign physical channels, then choose the name on a track. Mono uses one port; stereo uses left and right.");
     ui.horizontal_wrapped(|ui| {
         for (label, format, width) in [("+ Mono input", "mono", 1), ("+ Stereo input", "stereo", 2)] {
-            if ui.button(label).clicked() {
+            let response = ui.button(label);
+            crate::assistant::register(app, &format!("inputs.add.{format}"), &response, label);
+            if response.clicked() {
                 let mut number = app.engine.session().inputs.len().saturating_add(1);
                 while app.engine.session().inputs.iter().any(|p| p.name == format!("Input {number}")) { number = number.saturating_add(1); }
                 let _ = app.run("setup.inputs", json!({"action":"create","name":format!("Input {number}"),"format":format,"channels":vec![None::<usize>; width]}));
             }
         }
         let response = ui.add_enabled(count > 0, egui::Button::new("Map all device inputs"));
+        crate::assistant::register(app, "inputs.mapAll", &response, "Map all device inputs");
         response.clone().on_hover_text("Replace the list with one mono input per hardware channel and adjacent stereo pairs. Track names that no longer match stay visibly unavailable.");
         if response.clicked() { let _ = app.run("setup.inputs", json!({"action":"defaults","count":count})); }
     });
@@ -32,8 +38,12 @@ pub fn show(app: &mut SoundApp, ui: &mut egui::Ui, device: Option<(&str, usize)>
             }
             ui.end_row();
             for path in paths {
+                // A removed or renamed input must not leave its guide pointing at another row.
+                let identity = format!("{:016x}", egui::Id::unique(("input_path", &path.name)).value());
                 let mut active = path.active;
-                if ui.checkbox(&mut active, "").on_hover_text("Enable this input").changed() {
+                let response = ui.checkbox(&mut active, "").on_hover_text("Enable this input");
+                crate::assistant::register(app, &format!("inputs.path.{identity}.active"), &response, &format!("Enable {}", path.name));
+                if response.changed() {
                     let _ = app.run("setup.inputs", json!({"action":"update","name":path.name,"active":active}));
                 }
                 let key = egui::Id::unique(("input_path_name", &path.name));
@@ -44,6 +54,7 @@ pub fn show(app: &mut SoundApp, ui: &mut egui::Ui, device: Option<(&str, usize)>
                     &format!("Input name: {}", path.name),
                 );
                 ui.ctx().data_mut(|d| d.insert_temp(key, name.clone()));
+                crate::assistant::register(app, &format!("inputs.path.{identity}.name"), &response, &format!("Input name: {}", path.name));
                 if response.lost_focus() && name != path.name {
                     let _ = app.run("setup.inputs", json!({"action":"update","name":path.name,"new_name":name}));
                 }
@@ -58,20 +69,40 @@ pub fn show(app: &mut SoundApp, ui: &mut egui::Ui, device: Option<(&str, usize)>
                         }
                         let text = port
                             .map_or("Unassigned".into(), |p| if p < count { format!("Ch {}", p + 1) } else { format!("Ch {} unavailable", p + 1) });
-                        craft_ui::ComboBox::from_id_salt(("input_port", &path.name, channel))
+                        let response = craft_ui::ComboBox::from_id_salt(("input_port", &path.name, channel))
                             .width(105.0)
                             .selected_text(text)
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(port, None, "Unassigned");
+                                let option = ui.selectable_value(port, None, "Unassigned");
+                                crate::assistant::register(
+                                    app,
+                                    &format!("inputs.path.{identity}.channel.{channel}.unassigned"),
+                                    &option,
+                                    "Unassigned",
+                                );
                                 for p in 0..count {
-                                    ui.selectable_value(port, Some(p), format!("Channel {}", p + 1));
+                                    let option = ui.selectable_value(port, Some(p), format!("Channel {}", p + 1));
+                                    crate::assistant::register(
+                                        app,
+                                        &format!("inputs.path.{identity}.channel.{channel}.port.{p}"),
+                                        &option,
+                                        &format!("Channel {}", p + 1),
+                                    );
                                 }
                             })
                             .response
                             .accessible_name(format!("{} hardware channel {}", path.name, channel + 1));
+                        crate::assistant::register(
+                            app,
+                            &format!("inputs.path.{identity}.channel.{channel}"),
+                            &response,
+                            &format!("{} hardware channel {}", path.name, channel + 1),
+                        );
                     }
                 });
-                if ui.small_button("Remove").clicked() {
+                let response = ui.small_button("Remove");
+                crate::assistant::register(app, &format!("inputs.path.{identity}.remove"), &response, &format!("Remove {}", path.name));
+                if response.clicked() {
                     let _ = app.run("setup.inputs", json!({"action":"delete","name":path.name}));
                 }
                 if ports != path.channels {

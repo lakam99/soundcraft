@@ -97,6 +97,7 @@ fn edit_modes(app: &mut SoundApp, ui: &mut Ui) {
             draw_mode_cell(ui.painter(), cell, &resp, &t, m, &state, label);
             let on = state.cur == m || (m == EditMode::Grid && state.cur == EditMode::GridRelative);
             resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, true, on, label));
+            crate::assistant::register(app, &format!("edit.mode.{}", label.to_ascii_lowercase()), &resp, label);
             if resp.clicked() {
                 mode_click(app, m, ui.input(|i| i.modifiers));
             }
@@ -558,18 +559,22 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
             ui.spacing_mut().item_spacing = vec2(3.0, 4.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 3.0;
-                if icon_button(ui, vec2(38.0, 28.0), "loop", looped, "Loop Playback (Cmd+Shift+L)").clicked() {
+                let response = icon_button(ui, vec2(38.0, 28.0), "loop", looped, "Loop Playback (Cmd+Shift+L)");
+                crate::assistant::register(app, "transport.loop", &response, "Loop playback");
+                if response.clicked() {
                     let _ = app.run("options.loop_playback", json!({}));
                 }
                 let (r, resp) = ui.allocate_exact_size(vec2(38.0, 28.0), Sense::click());
                 key(ui.painter(), r, &resp, key_fill(&resp));
                 icons::draw(ui.painter(), r.shrink(5.0), "stop", if playing { t.text } else { t.accent });
+                crate::assistant::register(app, "transport.stop", &resp, "Stop");
                 if resp.on_hover_text("Stop (Space)").clicked() {
                     let _ = app.run("transport.stop", json!({}));
                 }
                 let (r, resp) = ui.allocate_exact_size(vec2(38.0, 28.0), Sense::click());
                 key(ui.painter(), r, &resp, if playing { Color32::from_rgb(40, 90, 50) } else { key_fill(&resp) });
                 icons::draw(ui.painter(), r.shrink(5.0), "play", if playing { Color32::from_rgb(120, 255, 140) } else { t.counter_text });
+                crate::assistant::register(app, "transport.play", &resp, "Play");
                 if resp.on_hover_text("Play (Space)").clicked() {
                     let _ = app.run("transport.play", json!({}));
                 }
@@ -578,6 +583,7 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
                 icons::draw(ui.painter(), r.shrink(5.0), "record", t.rec);
                 // macOS gives Cmd+Space to Spotlight unless the user frees it, so name F12 first.
                 let resp = resp.on_hover_text("Record (F12 or Cmd+Space)");
+                crate::assistant::register(app, "transport.record", &resp, "Record");
                 if let Some(why) = app.record_hint() {
                     // Below the whole group, so the hint covers none of its buttons.
                     let below = Rect::from_min_max(r.min, pos2(r.max.x, g.max.y));
@@ -595,7 +601,9 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
                     ("ffwd", "transport.fast_forward", "Fast Forward"),
                     ("end", "transport.go_to_end", "Go to End (End)"),
                 ] {
-                    if icon_button(ui, vec2(38.0, 22.0), icon, false, tip).clicked() {
+                    let response = icon_button(ui, vec2(38.0, 22.0), icon, false, tip);
+                    crate::assistant::register(app, cmd, &response, tip);
+                    if response.clicked() {
                         let _ = app.run(cmd, json!({}));
                     }
                 }

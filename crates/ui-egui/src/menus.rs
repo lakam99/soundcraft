@@ -309,7 +309,7 @@ pub fn menu_bar(app: &mut SoundApp, ui: &mut egui::Ui) {
                 });
                 let extra = ui_aliases();
                 for root in tree() {
-                    ui.menu_button(&root.label, |ui| {
+                    let menu = ui.menu_button(&root.label, |ui| {
                         ui.add_enabled_ui(menu_entries_enabled, |ui| {
                             for c in &root.children {
                                 menu_node(app, ui, c, &extra);
@@ -338,6 +338,7 @@ pub fn menu_bar(app: &mut SoundApp, ui: &mut egui::Ui) {
                             }
                         });
                     });
+                    crate::assistant::register(app, &format!("menu.{}", root.path), &menu.response, &root.label);
                 }
                 let title = format!(
                     "{}{}  —  {}",
@@ -372,11 +373,12 @@ fn instrument_track(s: &soundcraft_model::Session) -> Option<soundcraft_model::T
 
 fn menu_node(app: &mut SoundApp, ui: &mut egui::Ui, n: &MenuNode, extra: &[(&str, &str)]) {
     if !n.children.is_empty() {
-        ui.menu_button(&n.label, |ui| {
+        let menu = ui.menu_button(&n.label, |ui| {
             for c in &n.children {
                 menu_node(app, ui, c, extra);
             }
         });
+        crate::assistant::register(app, &format!("menu.{}", n.path), &menu.response, &n.label);
         return;
     }
     let id = command_for_path(&n.path, extra);
@@ -387,6 +389,7 @@ fn menu_node(app: &mut SoundApp, ui: &mut egui::Ui, n: &MenuNode, extra: &[(&str
     let btn = egui::Button::new(label).shortcut_text(crate::shortcuts::shortcut_label(shortcut, ui.ctx().os().is_mac()));
     let response = ui.add_enabled(enabled, btn);
     let response = if catalog::is_placeholder(&n.path) { response.on_disabled_hover_text("Not available yet.") } else { response };
+    crate::assistant::register(app, &format!("menu.{}", n.path), &response, &n.path);
     if response.clicked()
         && let Some(id) = id
     {

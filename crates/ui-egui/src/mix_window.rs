@@ -44,6 +44,7 @@ pub fn show_separate(app: &mut SoundApp, ctx: &egui::Context) {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);
         }
         show(app, ui);
+        crate::assistant::paint_guidance(app, ui.ctx());
         if ui.ctx().input(|i| i.viewport().close_requested()) {
             separate_closed(app);
         }
@@ -392,6 +393,7 @@ fn io_section(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) ->
             SelectorLabels { name: &format!("Input for {}", track.name), value: &input, tooltip: "Input" },
         );
         route_popup(app, &resp, id, true);
+        crate::assistant::register(app, &format!("mix.track.{}.input", id.0), &resp, &format!("Input for {}", track.name));
         let mut c = ui.new_child(egui::UiBuilder::new().id_salt(("mix-output", id.0)).max_rect(out_r));
         let output = route_name(app, &track.mixer.output);
         let resp = selector_box_named(
@@ -403,6 +405,7 @@ fn io_section(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) ->
             SelectorLabels { name: &format!("Output for {}", track.name), value: &output, tooltip: "Output" },
         );
         route_popup(app, &resp, id, false);
+        crate::assistant::register(app, &format!("mix.track.{}.output", id.0), &resp, &format!("Output for {}", track.name));
         // Automation mode.
         let am_r = Rect::from_min_size(pos2(x0 + 2.0, sec.min.y + 51.0), vec2(inner_w - 4.0, 16.0));
         ui.painter().text(pos2(am_r.center().x, am_r.min.y - 1.0), Align2::CENTER_BOTTOM, "", regular(9.0), t.text_dim);
@@ -541,11 +544,15 @@ fn toggle_rows(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) -
     row.spacing_mut().item_spacing.x = 6.0;
     if track.kind.has_playlist() {
         let input_label = format!("Input monitoring for {}", track.name);
-        if text_toggle(&mut row, vec2(bw, 18.0), "I", track.mixer.input_monitor, t.input, &input_label).clicked() {
+        let response = text_toggle(&mut row, vec2(bw, 18.0), "I", track.mixer.input_monitor, t.input, &input_label);
+        crate::assistant::register(app, &format!("mix.track.{}.monitor", id.0), &response, &input_label);
+        if response.clicked() {
             let _ = app.run("mix.input_monitor", json!({"track": id.0}));
         }
         let record_label = format!("Record enable for {}", track.name);
-        if rec_toggle(&mut row, vec2(bw, 18.0), track.mixer.record_arm, &record_label).clicked() {
+        let response = rec_toggle(&mut row, vec2(bw, 18.0), track.mixer.record_arm, &record_label);
+        crate::assistant::register(app, &format!("mix.track.{}.record", id.0), &response, &record_label);
+        if response.clicked() {
             let _ = app.run("mix.record_arm", json!({"track": id.0}));
         }
     }
@@ -556,11 +563,15 @@ fn toggle_rows(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) -
     row.spacing_mut().item_spacing.x = 6.0;
     if track.kind != TrackKind::Master {
         let solo_label = format!("Solo for {}", track.name);
-        if text_toggle(&mut row, vec2(bw, 18.0), "S", track.mixer.solo, t.solo, &solo_label).clicked() {
+        let response = text_toggle(&mut row, vec2(bw, 18.0), "S", track.mixer.solo, t.solo, &solo_label);
+        crate::assistant::register(app, &format!("mix.track.{}.solo", id.0), &response, &solo_label);
+        if response.clicked() {
             let _ = app.run("mix.solo", json!({"track": id.0}));
         }
         let mute_label = format!("Mute for {}", track.name);
-        if text_toggle(&mut row, vec2(bw, 18.0), "M", track.mixer.mute, t.mute, &mute_label).clicked() {
+        let response = text_toggle(&mut row, vec2(bw, 18.0), "M", track.mixer.mute, t.mute, &mute_label);
+        crate::assistant::register(app, &format!("mix.track.{}.mute", id.0), &response, &mute_label);
+        if response.clicked() {
             let _ = app.run("mix.mute", json!({"track": id.0}));
         }
     }
@@ -576,6 +587,13 @@ fn fader_and_meter(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, y: f32, s
     let fh = (r.max.y - STRIP_FOOT_H - y).max(120.0);
     let wide_meter = (if track.kind == TrackKind::Master { app.engine.session().main_format() } else { track.format }).channels() > 2;
     let fr = Rect::from_min_size(pos2(x0, y), vec2(inner_w * if wide_meter { 0.45 } else { 0.6 }, fh));
+    crate::assistant::register_area(
+        app,
+        &format!("mix.track.{}.volume", id.0),
+        fr.intersect(ui.clip_rect()),
+        ui.ctx(),
+        &format!("Volume for {}", track.name),
+    );
     if let Some(db) = fader(ui, fr, track.mixer.volume_db, ui.scope_id().with(("fader", id.0)), &format!("{} level", track.name)) {
         app.gesture = Some(crate::Gesture::Fader { track: id, start_db: track.mixer.volume_db });
         let _ = app.engine.execute_merged("mix.volume", &json!({"track": id.0, "db": db}), &format!("fader:{}", id.0));

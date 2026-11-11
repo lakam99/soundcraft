@@ -5,6 +5,49 @@ use std::time::{Duration, Instant};
 fn app() -> SoundApp {
     SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default())
 }
+
+#[test]
+fn how_to_guidance_points_at_the_real_input_button_without_creating_an_input() {
+    let mut app = app();
+    app.ui.ai.attach_frames = false;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1000.0, 700.0)).build_ui_state(
+        |ui, app: &mut SoundApp| {
+            begin_frame(app, ui);
+            crate::panels::input_setup::show(app, ui, Some(("Test interface", 4)));
+            poll(app, ui.ctx());
+            paint_guidance(app, ui.ctx());
+        },
+        app,
+    );
+    h.run_steps(3);
+    assert!(elements(h.state()).as_array().unwrap().iter().any(|e| e["id"] == "inputs.add.mono"));
+    let before = h.state().engine.session_arc();
+    *h.state_mut().assistant.panel.prompt_mut() = "How do I add a mono input?".into();
+    let ctx = h.ctx.clone();
+    let mut step = 0;
+    with_panel(h.state_mut(), |panel, host| panel.send_with(host, &ctx, move |_| {
+        step += 1;
+        if step == 1 { Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":"guide","name":"highlight_ui","arguments":json!({"targets":[{"id":"inputs.add.mono","label":"Click + Mono input"}]}).to_string()}]})) }
+        else { Ok(reply("Click the highlighted + Mono input button.")) }
+    })).unwrap().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while h.state().assistant.panel.busy() && Instant::now() < deadline {
+        h.run_steps(1);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!h.state().assistant.panel.busy());
+    h.run_steps(3);
+    assert!(Arc::ptr_eq(&before, &h.state().engine.session_arc()));
+    let status = command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap();
+    assert_eq!(status["highlights"][0]["id"], "inputs.add.mono");
+    assert_eq!(status["highlights"][0]["visible"], true);
+    if let Some(dir) = std::env::var_os("CRAFT_AI_EDITOR_FIXTURES") {
+        std::fs::create_dir_all(&dir).unwrap();
+        h.render().unwrap().save(std::path::Path::new(&dir).join("soundcraft-guidance.png")).unwrap();
+    }
+    command(h.state_mut(), "ai.clearHighlights", &json!({})).unwrap().unwrap();
+    assert_eq!(command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap()["highlights"], json!([]));
+}
 fn finish(app: &mut SoundApp) {
     let deadline = Instant::now() + Duration::from_secs(8);
     while app.assistant.panel.busy() && Instant::now() < deadline {
@@ -12,6 +55,29 @@ fn finish(app: &mut SoundApp) {
         std::thread::sleep(Duration::from_millis(2));
     }
     assert!(!app.assistant.panel.busy(), "mock assistant timed out");
+}
+
+#[test]
+fn deleting_an_input_cannot_retarget_its_highlight_to_another_row() {
+    let mut app = app();
+    for name in ["Vocal", "Guitar"] {
+        app.run("setup.inputs", json!({"action":"create","name":name,"format":"mono","channels":[0]})).unwrap();
+    }
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1000.0, 700.0)).build_ui_state(
+        |ui, app: &mut SoundApp| {
+            begin_frame(app, ui);
+            crate::panels::input_setup::show(app, ui, Some(("Test interface", 4)));
+        },
+        app,
+    );
+    h.run_steps(3);
+    let before = elements(h.state());
+    let old_id = before.as_array().unwrap().iter().find(|e| e["label"] == "Input name: Vocal").unwrap()["id"].as_str().unwrap().to_owned();
+    h.state_mut().run("setup.inputs", json!({"action":"delete","name":"Vocal"})).unwrap();
+    h.run_steps(3);
+    let after = elements(h.state());
+    assert!(!after.as_array().unwrap().iter().any(|e| e["id"] == old_id));
+    assert!(after.as_array().unwrap().iter().any(|e| e["label"] == "Input name: Guitar"));
 }
 fn reply(text: &str) -> Value {
     json!({"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":text}]}]})

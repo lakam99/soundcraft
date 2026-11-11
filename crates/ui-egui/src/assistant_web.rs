@@ -8,6 +8,10 @@ pub fn command(_app: &mut SoundApp, id: &str, _params: &Value) -> Option<Result<
 }
 pub fn document_replaced(_app: &mut SoundApp) {}
 pub fn poll(_app: &mut SoundApp, _ctx: &egui::Context) {}
+pub fn begin_frame(_app: &mut SoundApp, _ui: &egui::Ui) {}
+pub fn register(_app: &mut SoundApp, _id: &str, _response: &egui::Response, _label: &str) {}
+pub fn register_area(_app: &mut SoundApp, _id: &str, _rect: egui::Rect, _ctx: &egui::Context, _label: &str) {}
+pub fn paint_guidance(_app: &mut SoundApp, _ctx: &egui::Context) {}
 pub fn show(_app: &mut SoundApp, ui: &mut egui::Ui) {
     ui.label("AI Chat is available in the desktop editor.");
 }

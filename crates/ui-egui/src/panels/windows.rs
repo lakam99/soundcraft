@@ -460,7 +460,7 @@ fn chosen_device<'a>(devices: &'a [DeviceInfo], name: Option<&str>) -> Option<&'
 }
 
 /// Device picker with a Default entry and channel counts, labelled for accessibility.
-fn device_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<String>, devices: &[DeviceInfo]) {
+fn device_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<String>, devices: &[DeviceInfo]) -> egui::Response {
     let default = devices.iter().find(|d| d.is_default).map_or("none".to_string(), |d| d.name.clone());
     let shown = value.clone().unwrap_or_else(|| format!("Default ({default})"));
     let combo = craft_ui::ComboBox::from_id_salt(id).width(300.0).selected_text(shown).show_ui(ui, |ui| {
@@ -469,11 +469,11 @@ fn device_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<Stri
             ui.selectable_value(value, Some(d.name.clone()), format!("{} ({} ch)", d.name, d.max_channels));
         }
     });
-    combo.response.accessible_name(name);
+    combo.response.accessible_name(name)
 }
 
 /// Optional-number picker with a Device default entry and a unit, labelled for accessibility.
-fn number_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<u32>, options: &[u32], unit: &str) {
+fn number_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<u32>, options: &[u32], unit: &str) -> egui::Response {
     let shown = value.map_or("Device default".to_string(), |v| format!("{v} {unit}"));
     let combo = craft_ui::ComboBox::from_id_salt(id).width(300.0).selected_text(shown).show_ui(ui, |ui| {
         ui.selectable_value(value, None, "Device default");
@@ -481,7 +481,7 @@ fn number_combo(ui: &mut egui::Ui, id: &str, name: &str, value: &mut Option<u32>
             ui.selectable_value(value, Some(*v), format!("{v} {unit}"));
         }
     });
-    combo.response.accessible_name(name);
+    combo.response.accessible_name(name)
 }
 
 /// Setup › Playback Engine / Hardware: choose the audio system, devices, rate and buffer size.
@@ -496,6 +496,7 @@ pub fn playback_engine(app: &mut SoundApp, ctx: &egui::Context) {
     let mut apply = false;
     let systems = audio_systems(ctx, false);
     win(ctx, &mut open, "Playback Engine", vec2(460.0, 360.0), |ui| {
+        crate::assistant::register_area(app, "panel.audioDevice", ui.max_rect(), ui.ctx(), "Audio device settings");
         let t = Tokens::current();
         egui::Grid::new("pe").num_columns(2).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
             let system_label = ui.label("Audio system");
@@ -513,33 +514,42 @@ pub fn playback_engine(app: &mut SoundApp, ctx: &egui::Context) {
                     draft.input = None;
                 }
             });
+            crate::assistant::register(app, "audioDevice.system", &system.response, "Audio system");
             system.response.labelled_by(system_label.id);
             ui.end_row();
             let sys = chosen_system(&systems, &draft);
             ui.label("Output device");
-            device_combo(ui, "pe-out", "Output device", &mut draft.output, sys.map_or(&[][..], |s| &s.outputs));
+            let response = device_combo(ui, "pe-out", "Output device", &mut draft.output, sys.map_or(&[][..], |s| &s.outputs));
+            crate::assistant::register(app, "audioDevice.output", &response, "Output device");
             ui.end_row();
             ui.label("Input device");
-            device_combo(ui, "pe-in", "Input device", &mut draft.input, sys.map_or(&[][..], |s| &s.inputs));
+            let response = device_combo(ui, "pe-in", "Input device", &mut draft.input, sys.map_or(&[][..], |s| &s.inputs));
+            crate::assistant::register(app, "audioDevice.input", &response, "Input device");
             ui.end_row();
             let out = sys.and_then(|s| chosen_device(&s.outputs, draft.output.as_deref()));
             ui.label("Sample rate");
-            number_combo(ui, "pe-rate", "Sample rate", &mut draft.sample_rate, out.map_or(&[][..], |d| &d.sample_rates), "Hz");
+            let response = number_combo(ui, "pe-rate", "Sample rate", &mut draft.sample_rate, out.map_or(&[][..], |d| &d.sample_rates), "Hz");
+            crate::assistant::register(app, "audioDevice.sampleRate", &response, "Sample rate");
             ui.end_row();
             ui.label("Buffer size");
             // The combo lists standard power-of-two sizes. `setup.playback_engine` does not round
             // onto this list: it keeps any integer 16..=8192, the same as `ui.audio_device`.
             let buffers = out.map(DeviceInfo::buffer_sizes).unwrap_or_else(|| soundcraft_playback::devices::STANDARD_BUFFERS.to_vec());
-            number_combo(ui, "pe-buffer", "Buffer size", &mut draft.buffer_size, &buffers, "samples");
+            let response = number_combo(ui, "pe-buffer", "Buffer size", &mut draft.buffer_size, &buffers, "samples");
+            crate::assistant::register(app, "audioDevice.bufferSize", &response, "Buffer size");
             ui.end_row();
         });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            if ui.button("Refresh devices").clicked() {
+            let response = ui.button("Refresh devices");
+            crate::assistant::register(app, "audioDevice.refresh", &response, "Refresh devices");
+            if response.clicked() {
                 refresh = true;
             }
             let changed = draft != app.ui.audio;
-            if ui.add_enabled(changed, egui::Button::new("Apply")).on_hover_text("Reopen the audio devices with these settings").clicked() {
+            let response = ui.add_enabled(changed, egui::Button::new("Apply")).on_hover_text("Reopen the audio devices with these settings");
+            crate::assistant::register(app, "audioDevice.apply", &response, "Apply audio device settings");
+            if response.clicked() {
                 apply = true;
             }
             if changed && ui.button("Revert").clicked() {

@@ -94,4 +94,4 @@ pub fn floating(app: &mut SoundApp, ctx: &egui::Context) {
     session_info(app, ctx);
 }
 
-mod input_setup;
+pub(crate) mod input_setup;

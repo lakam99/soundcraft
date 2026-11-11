@@ -325,6 +325,7 @@ impl SoundApp {
         // the batch pending, and inject the same edit/navigation/cut again next frame.
         let received_synthetic = self.pass_received_synthetic(&ctx);
         shortcuts::handle(self, &ctx);
+        crate::assistant::begin_frame(self, ui);
         self.sample_drop_targets.clear();
         if !self.native_menu_bar {
             menus::menu_bar(self, ui);
@@ -348,6 +349,7 @@ impl SoundApp {
         palette::show(self, &ctx);
         dialogs::show(self, &ctx);
         updates_ui::show(self, &ctx);
+        crate::assistant::paint_guidance(self, &ctx);
         // The sampler's drop rects are current now, so route any captured drop in this pass.
         self.route_dropped_files();
         // The pass that actually received the injected events has already dispatched their widget

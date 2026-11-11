@@ -19,6 +19,12 @@ This fork writes session format 2. It reads version 0/1 sessions and explicitly 
 
 ## AI Chat
 
+Ask “How do I…?” for numbered highlights on the relevant editor controls. Input mapping,
+audio-device settings, menus, panels, mixer strips and transport controls expose discoverable targets. The numbers match
+the instructions in the chat, and the outlined controls remain clickable. Highlighting
+does not perform the edit. Use **Clear highlights** or **Esc** to dismiss the guide; a new
+question, **Stop**, or opening another session clears it.
+
 Open Window → AI Chat. It is a dockable panel in Edit and Mix workspaces. Use its connection button to enter an OpenAI API key. Preferences → AI Chat stores the model, context attachment and secure-key preference; changes on that page apply immediately. The key uses the OS credential store for this preference profile, with no plaintext fallback. Disabling secure remembering deletes the profile's stored key. Chat, draft text and keys are not saved in session files or UI preferences. Portable settings do not make an OS-vault credential portable to another machine.
 
 The shared plugin renders Markdown and presents tool activity as readable status cards. The assistant can discover and invoke SoundCraft's existing editor commands and UI tools, including the input mapping API. Session edits use normal undo. Session replacement cancels stale work. Automatic context includes session metadata and input/device configuration, including paths and track names where the editor reports them. Sending a prompt sends this selected context to OpenAI. The assistant does not receive live audio and must not claim to hear or measure it. AI controls and credentials remain user-owned.

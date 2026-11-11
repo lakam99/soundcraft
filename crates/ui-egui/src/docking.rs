@@ -493,24 +493,35 @@ pub fn show(app: &mut crate::SoundApp, ui: &mut egui::Ui, window: crate::MainWin
         |panel| panel.label().into(),
         permissions,
         panel_limits,
-        |ui, panel| match panel {
-            Panel::Canvas => {
-                ui.painter().rect_filled(ui.max_rect(), 0.0, t.window_bg);
-                if edit {
-                    crate::edit_window::main_area(app, ui);
-                } else {
-                    crate::mix_window::content(app, ui);
+        |ui, panel| {
+            if *panel != Panel::AiChat {
+                crate::assistant::register_area(
+                    app,
+                    &format!("panel.{}.{panel:?}", if edit { "edit" } else { "mix" }),
+                    ui.max_rect().intersect(ui.clip_rect()),
+                    ui.ctx(),
+                    panel.label(),
+                );
+            }
+            match panel {
+                Panel::Canvas => {
+                    ui.painter().rect_filled(ui.max_rect(), 0.0, t.window_bg);
+                    if edit {
+                        crate::edit_window::main_area(app, ui);
+                    } else {
+                        crate::mix_window::content(app, ui);
+                    }
                 }
+                Panel::Tracks => crate::panels::tracks_and_groups(app, ui),
+                Panel::Clips => crate::panels::clip_list(app, ui),
+                Panel::Midi => {
+                    ui.ctx().data_mut(|data| data.insert_temp(egui::Id::unique("soundcraft-midi-body"), ui.max_rect()));
+                    minimum_body(ui, egui::vec2(420.0, 260.0), |ui| crate::midi_editor::show(app, ui));
+                }
+                Panel::Memory => crate::panels::memory_locations(app, ui),
+                Panel::History => crate::panels::undo_history(app, ui),
+                Panel::AiChat => crate::assistant::show(app, ui),
             }
-            Panel::Tracks => crate::panels::tracks_and_groups(app, ui),
-            Panel::Clips => crate::panels::clip_list(app, ui),
-            Panel::Midi => {
-                ui.ctx().data_mut(|data| data.insert_temp(egui::Id::unique("soundcraft-midi-body"), ui.max_rect()));
-                minimum_body(ui, egui::vec2(420.0, 260.0), |ui| crate::midi_editor::show(app, ui));
-            }
-            Panel::Memory => crate::panels::memory_locations(app, ui),
-            Panel::History => crate::panels::undo_history(app, ui),
-            Panel::AiChat => crate::assistant::show(app, ui),
         },
     );
     let _ = sync(&mut workspace, app, edit);
