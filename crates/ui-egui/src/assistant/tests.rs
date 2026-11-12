@@ -7,6 +7,70 @@ fn app() -> SoundApp {
 }
 
 #[test]
+fn walkthrough_advances_only_after_each_real_input_edit() {
+    use egui_kittest::kittest::Queryable;
+    let mut app = app();
+    app.ui.ai.attach_frames = false;
+    app.ui.show_ai_chat = true;
+    let initial = app.engine.session().inputs.len();
+    let before = app.engine.session_arc();
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1500.0, 900.0)).build_ui_state(
+        |ui, app: &mut SoundApp| {
+            begin_frame(app, ui);
+            egui::Panel::right("guide-chat").exact_size(420.0).show(ui, |ui| show(app, ui));
+            crate::panels::input_setup::show(app, ui, Some(("Test interface", 4)));
+            poll(app, ui.ctx());
+            paint_guidance(app, ui.ctx());
+        },
+        app,
+    );
+    h.run_steps(4);
+    let ctx = h.ctx.clone();
+    *h.state_mut().assistant.panel.prompt_mut() = "Guide me through adding a mono input and a stereo input".into();
+    let mut turn = 0;
+    with_panel(h.state_mut(),|panel,host|panel.send_with(host,&ctx,move |_|{
+        let current=turn;turn+=1;
+        if current<2 {
+            let (id,label)=if current==0 {("inputs.add.mono","Create a mono input")}else{("inputs.add.stereo","Create a stereo input")};
+            Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":format!("step{current}"),"name":"guide_ui","arguments":json!({"id":id,"label":label,"instruction":format!("Click the highlighted **{}** button.",if current==0 {"+ Mono input"} else {"+ Stereo input"}),"completion":"state","watch_id":"","state_pointer":"/inputCount","comparison":"greater","expected_json":(initial+current).to_string()}).to_string()}]}))
+        } else {Ok(reply("Your mono and stereo inputs are ready."))}
+    })).unwrap().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap()["walkthrough"]["step"] != 1 && Instant::now() < deadline {
+        h.run_steps(1);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    h.run_steps(4);
+    assert!(Arc::ptr_eq(&before, &h.state().engine.session_arc()), "the assistant must wait for the user's edit");
+    h.query_by_role_and_label(egui::accesskit::Role::Button, "+ Mono input").unwrap().click();
+    h.run_steps(3);
+    while command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap()["walkthrough"]["step"] != 2 && Instant::now() < deadline {
+        h.run_steps(1);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    h.run_steps(4);
+    let status = command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap();
+    assert_eq!(status["highlights"][0]["id"], "inputs.add.stereo");
+    assert_eq!(status["highlights"][0]["number"], 2);
+    assert_eq!(h.state().engine.session().inputs.len(), initial + 1);
+    if let Some(dir) = std::env::var_os("CRAFT_AI_EDITOR_FIXTURES") {
+        std::fs::create_dir_all(&dir).unwrap();
+        h.render().unwrap().save(std::path::Path::new(&dir).join("soundcraft-walkthrough.png")).unwrap();
+    }
+    h.query_by_role_and_label(egui::accesskit::Role::Button, "+ Stereo input").unwrap().click();
+    h.run_steps(3);
+    while h.state().assistant.panel.busy() && Instant::now() < deadline {
+        h.run_steps(1);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!h.state().assistant.panel.busy());
+    assert_eq!(h.state().engine.session().inputs.len(), initial + 2);
+    assert_eq!(command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap()["highlights"], json!([]));
+    h.state_mut().run("edit.undo", json!({})).unwrap();
+    assert_eq!(h.state().engine.session().inputs.len(), initial + 1, "user edits retain normal undo");
+}
+
+#[test]
 fn how_to_guidance_points_at_the_real_input_button_without_creating_an_input() {
     let mut app = app();
     app.ui.ai.attach_frames = false;

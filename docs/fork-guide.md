@@ -1,5 +1,15 @@
 # SoundCraft fork guide
 
+## Step-by-step AI guides
+
+Ask “Guide me step by step” to highlight one control, wait for your action, then
+highlight the next control after checking the result. For example, adding an
+input waits for the named input count to increase. The assistant does not perform
+the step for you. Use **Pause guide** / **Resume guide**, or **I've done this** for
+work that cannot be detected automatically. Manual confirmation is not reported
+as automatic verification. **Clear highlights**, **Esc** and **Stop** cancel the
+walkthrough; opening another session cancels it too.
+
 ## Recording inputs
 
 1. Open Setup → Playback Engine. Select the audio system and the intended input/output devices, sample rate and buffer; apply the changes.

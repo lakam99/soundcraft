@@ -18,6 +18,7 @@ pub(crate) struct Runtime {
     protected: [Option<egui::Rect>; 2],
     editor_widgets: std::collections::BTreeMap<String, (egui::Rect, egui::ViewportId, String)>,
     previous_widgets: std::collections::BTreeMap<String, (egui::Rect, egui::ViewportId, String)>,
+    observations: std::collections::BTreeMap<String, (egui::ViewportId, craft_ai_chat_egui::Observation)>,
 }
 impl Default for Runtime {
     fn default() -> Self {
@@ -29,6 +30,7 @@ impl Default for Runtime {
             protected: [None, None],
             editor_widgets: Default::default(),
             previous_widgets: Default::default(),
+            observations: Default::default(),
         }
     }
 }
@@ -149,6 +151,14 @@ impl Host for Adapter<'_> {
             Err(mpsc::TryRecvError::Disconnected) => Err("editor tool reply closed".into()),
         }
     }
+    fn guide_observation(&self, id: &str, ctx: &egui::Context) -> Option<craft_ai_chat_egui::Observation> {
+        let (viewport, observation) = self.app.assistant.observations.get(id)?;
+        (*viewport == ctx.viewport_id()).then_some(*observation)
+    }
+    fn guide_state(&self) -> Value {
+        let session = self.app.engine.session();
+        json!({"inputCount":session.inputs.len(),"trackCount":session.tracks.len(),"sourceCount":session.sources.len(),"selectedClipCount":session.edit.selected_clips.len(),"playing":self.app.engine.transport.playing,"recording":self.app.engine.transport.recording})
+    }
     fn set_preference(&mut self, key: &str, value: Value) -> Result<(), String> {
         self.app.run("ai.preferences", json!({"key":key,"value":value})).map(|_| ())
     }
@@ -220,13 +230,16 @@ pub fn document_replaced(app: &mut SoundApp) {
     app.assistant.instance = Arc::new(());
     app.assistant.editor_widgets.clear();
     app.assistant.previous_widgets.clear();
+    app.assistant.observations.clear();
 }
 pub fn begin_frame(app: &mut SoundApp, ui: &egui::Ui) {
+    app.assistant.observations.clear();
     app.assistant.previous_widgets = std::mem::take(&mut app.assistant.editor_widgets);
     register_area(app, "panel.editor", ui.max_rect(), ui.ctx(), "Editor");
 }
 pub fn register(app: &mut SoundApp, id: &str, response: &egui::Response, label: &str) {
     register_area(app, id, response.interact_rect, &response.ctx, label);
+    app.assistant.observations.insert(id.into(), (response.ctx.viewport_id(), craft_ai_chat_egui::Observation::from(response)));
 }
 pub fn register_area(app: &mut SoundApp, id: &str, rect: egui::Rect, ctx: &egui::Context, label: &str) {
     if rect.is_finite() && rect.is_positive() {
