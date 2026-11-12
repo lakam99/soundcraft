@@ -1186,8 +1186,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-core"
-version = "0.4.0"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=57308f4aa143fefa4de8795b3bc275d2528f8c0f#57308f4aa143fefa4de8795b3bc275d2528f8c0f"
+version = "0.5.3"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea#ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea"
 dependencies = [
  "serde",
  "serde_json",
@@ -1195,8 +1195,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-egui"
-version = "0.4.0"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=57308f4aa143fefa4de8795b3bc275d2528f8c0f#57308f4aa143fefa4de8795b3bc275d2528f8c0f"
+version = "0.5.3"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea#ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea"
 dependencies = [
  "craft-ai-chat-core",
  "craft-ai-chat-native",
@@ -1209,8 +1209,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-native"
-version = "0.4.0"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=57308f4aa143fefa4de8795b3bc275d2528f8c0f#57308f4aa143fefa4de8795b3bc275d2528f8c0f"
+version = "0.5.3"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea#ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea"
 dependencies = [
  "craft-ai-chat-core",
  "keyring",
@@ -5137,7 +5137,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "chrono",
  "clap",
@@ -5161,7 +5161,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-au-host"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "log",
  "serde",
@@ -5171,7 +5171,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-audio-io"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "log",
  "proptest",
@@ -5183,7 +5183,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-automation"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "clap",
  "log",
@@ -5196,7 +5196,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-clap-host"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "clap-sys",
  "libloading 0.9.0",
@@ -5209,7 +5209,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-cli"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "clap",
  "clap_complete",
@@ -5227,7 +5227,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-dsp"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "log",
  "proptest",
@@ -5238,7 +5238,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-engine"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "craft-docpath",
  "log",
@@ -5261,7 +5261,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-midi"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "proptest",
  "serde",
@@ -5271,7 +5271,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-mix"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "log",
  "rayon",
@@ -5287,7 +5287,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-model"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "proptest",
  "serde",
@@ -5300,7 +5300,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-playback"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "cpal",
  "log",
@@ -5315,7 +5315,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-time"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "proptest",
  "serde",
@@ -5325,7 +5325,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-ui-egui"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "craft-ai-chat-core",
  "craft-ai-chat-egui",
@@ -5357,7 +5357,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-video"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "craft-media",
  "image",
@@ -5369,7 +5369,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-vst3-host"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "libloading 0.9.0",
  "log",
@@ -5385,7 +5385,7 @@ dependencies = [
 
 [[package]]
 name = "soundcraft-web"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "eframe",
  "egui",
@@ -7160,7 +7160,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.17.4"
+version = "0.17.5"
 dependencies = [
  "serde_json",
 ]

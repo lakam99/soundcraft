@@ -1,5 +1,25 @@
 # SoundCraft fork guide
 
+## Batches and saved history
+
+Bulk requests use batches of up to 64 discovered editor commands per AI tool call,
+with one progress card. Commands execute in order through the normal editor APIs;
+a failure stops later commands. Completed edits keep their ordinary Undo entries.
+A batch is not an atomic edit or one Undo step. Inspect current state before
+continuing unfinished work; completed commands must not be replayed.
+
+Tool-limit and network errors preserve the original request and completed-work
+context. Chat history is saved locally per project beside editor preferences;
+**Remember chat history locally** controls this in AI preferences. **New chat**
+clears the current project's saved conversation. Credentials and attached media
+are excluded. History discarded by an older version cannot be recovered.
+
+Older attachments are omitted from later turns. Long model context is compacted
+into a continuation summary while the readable transcript stays separate. This
+uses the selected model and counts as API usage; a failed summary preserves the
+existing context for retry.
+
+
 ## Step-by-step AI guides
 
 Ask “Guide me step by step” to highlight one control, wait for your action, then

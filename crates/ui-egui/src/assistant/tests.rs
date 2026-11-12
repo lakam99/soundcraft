@@ -7,6 +7,34 @@ fn app() -> SoundApp {
 }
 
 #[test]
+fn batch_renames_forty_tracks_in_one_tool_call_with_normal_undo() {
+    let mut app = app();
+    app.ui.ai.attach_frames = false;
+    app.run("track.new", json!({"count":40,"name":"Original","format":"mono"})).unwrap();
+    let ids: Vec<_> = app.engine.session().tracks.iter().map(|t| t.id).collect();
+    assert_eq!(ids.len(), 40);
+    let old_last = app.engine.session().tracks[39].name.clone();
+    let commands: Vec<_> = ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| json!({"command":"track.rename","params_json":json!({"track":id,"name":format!("Take {i:02}")}).to_string()}))
+        .collect();
+    *app.assistant.panel.prompt_mut() = "Rename all forty tracks".into();
+    let mut request = 0;
+    with_panel(&mut app,|panel,host|panel.send_with(host,&egui::Context::default(),move|body|{
+        request+=1;if request==1 {Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":"bulk","name":"batch_commands","arguments":json!({"editor":"soundcraft","label":"Rename 40 tracks","commands":commands}).to_string()}]}))}
+        else {let output:Value=serde_json::from_str(body["input"].as_array().unwrap().last().unwrap()["output"].as_str().unwrap()).unwrap();assert_eq!(output["completed"],40);Ok(reply("Renamed all forty tracks."))}
+    })).unwrap().unwrap();
+    finish(&mut app);
+    for (i, id) in ids.iter().enumerate() {
+        assert_eq!(app.engine.session().track(*id).unwrap().name, format!("Take {i:02}"));
+    }
+    assert_eq!(app.assistant.panel.transcript().iter().filter(|(role, _)| role == "Tool").count(), 1);
+    app.run("edit.undo", json!({})).unwrap();
+    assert_eq!(app.engine.session().track(ids[39]).unwrap().name, old_last);
+}
+
+#[test]
 fn walkthrough_advances_only_after_each_real_input_edit() {
     use egui_kittest::kittest::Queryable;
     let mut app = app();
@@ -197,10 +225,12 @@ fn preferences_persist_without_credentials_or_chat_and_tools_reject_self_invocat
     *app.assistant.panel.prompt_mut() = "private draft".into();
     app.run("ai.preferences", json!({"key":"ai.model","value":"test-model"})).unwrap();
     app.run("ai.preferences", json!({"key":"ai.rememberKey","value":false})).unwrap();
+    app.run("ai.preferences", json!({"key":"ai.rememberHistory","value":false})).unwrap();
     let saved = serde_json::to_string(&app.ui).unwrap();
     let loaded: crate::UiState = serde_json::from_str(&saved).unwrap();
     assert_eq!(loaded.ai.model, "test-model");
     assert!(!loaded.ai.remember_key);
+    assert!(!loaded.ai.remember_history);
     let inspected = app.inspect(&egui::Context::default()).to_string();
     for data in [saved, inspected, app.engine.session().to_json().unwrap()] {
         assert!(!data.contains("sk-test-only-private-key"));
