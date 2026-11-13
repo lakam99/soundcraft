@@ -7,8 +7,8 @@ specialist interface and its independent panel arrangement.
 ## Design principles
 
 - **Recognition:** visible Audio track, Instrument track and Import actions give
-  an empty project clear starting points. Tools have names, rather than relying on
-  unfamiliar pictures or edit-mode abbreviations.
+  an empty project clear starting points. Timeline tools and transport use original
+  icons with named hover help, shortcut hints and accessible labels.
 - **Hierarchy:** transport stays at the bottom. Arrangement tools stay at the top;
   less frequent operations move into More tools and the existing menus.
 - **Consistency:** Inspector, Browser, Mix and MIDI editor toggle in place. F2–F5

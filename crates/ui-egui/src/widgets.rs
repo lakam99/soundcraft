@@ -191,7 +191,8 @@ pub fn text_toggle(ui: &mut Ui, size: egui::Vec2, text: &str, on: bool, on_color
 /// Record-enable button (red dot); the caller owns track arming and command dispatch.
 pub fn rec_toggle(ui: &mut Ui, size: egui::Vec2, on: bool, tip: &str) -> Response {
     let t = Tokens::current();
-    let style = button_style(t.rec, Color32::from_rgb(218, 112, 106), 2);
+    let ink = if crate::theme::is_modern() { t.auto_write } else { Color32::from_rgb(218, 112, 106) };
+    let style = button_style(t.rec, ink, 2);
     let resp = IconButton::new(tip, size, &style).selected(on).single_shape_frame().show(ui, |ui, r, tint| {
         key_light(ui.painter(), r.shrink(1.0));
         let rad = size.y * 0.24;

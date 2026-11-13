@@ -95,6 +95,68 @@ fn modern_palettes_keep_small_text_and_selected_labels_readable() {
 }
 
 #[test]
+fn timeline_icons_keep_accessible_names_selected_state_and_command_behavior() {
+    let mut h = harness(vec2(1000.0, 800.0), 1.0);
+    for label in [
+        "Move",
+        "Range",
+        "Trim",
+        "Draw",
+        "Smart",
+        "Snap",
+        "Zoom out",
+        "Zoom in",
+        "More tools",
+        "Go to start",
+        "Stop",
+        "Play",
+        "Record",
+        "Loop",
+        "Click",
+    ] {
+        let rect = h.get_by_role_and_label(egui::accesskit::Role::Button, label).rect();
+        assert!(rect.width() >= 30.0 && rect.height() >= 30.0, "{label} needs a usable icon target: {rect:?}");
+        assert!(
+            !h.output().shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == label)),
+            "{label} should be an icon with an accessible name, not a painted caption"
+        );
+    }
+    for (label, tool) in [
+        ("Move", soundcraft_model::Tool::Grabber),
+        ("Range", soundcraft_model::Tool::Selector),
+        ("Trim", soundcraft_model::Tool::Trim),
+        ("Draw", soundcraft_model::Tool::Pencil),
+        ("Smart", soundcraft_model::Tool::Smart),
+    ] {
+        h.get_by_label(label).click();
+        h.run_steps(3);
+        assert_eq!(h.state().engine.session().edit.tool, tool);
+    }
+    let snap = h.state().engine.session().edit.edit_mode.is_grid();
+    h.get_by_label("Snap").click();
+    h.run_steps(3);
+    assert_ne!(h.state().engine.session().edit.edit_mode.is_grid(), snap);
+    let looped = h.state().engine.session().edit.loop_playback;
+    h.get_by_label("Loop").click();
+    h.run_steps(3);
+    assert_ne!(h.state().engine.session().edit.loop_playback, looped);
+    let click = h.state().engine.session().edit.click;
+    h.get_by_label("Click").click();
+    h.run_steps(3);
+    assert_ne!(h.state().engine.session().edit.click, click);
+    let zoom = h.state().engine.session().edit.zoom.samples_per_px;
+    h.get_by_label("Zoom in").click();
+    h.run_steps(3);
+    assert!(h.state().engine.session().edit.zoom.samples_per_px < zoom);
+    h.get_by_label("More tools").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Scrub audio").is_some());
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    shot(&mut h, "modern-timeline-icons");
+}
+
+#[test]
 fn simplified_channel_controls_keep_recording_and_advanced_routing_reachable() {
     let mut h = harness(vec2(1600.0, 1000.0), 1.0);
     h.state_mut().engine = soundcraft_engine::demo::demo_engine();

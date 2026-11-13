@@ -24,7 +24,12 @@ pub fn show(app: &mut SoundApp, ui: &mut Ui) {
 }
 
 fn action(app: &mut SoundApp, ui: &mut Ui, id: &str, label: &str, command: &str) {
-    let response = ui.add_sized([0.0, 30.0], egui::Button::new(label));
+    let response = match command {
+        "transport.rtz" => timeline_icon(ui, "rtz", label, false, "Go to start (Home)"),
+        "view.zoom_out" => timeline_icon(ui, "zoom_out", label, false, "Zoom out"),
+        "view.zoom_in" => timeline_icon(ui, "zoom_in", label, false, "Zoom in"),
+        _ => ui.add_sized([0.0, 30.0], egui::Button::new(label)),
+    };
     crate::assistant::register(app, id, &response, label);
     if response.clicked() {
         run(app, command, json!({}));
@@ -32,11 +37,21 @@ fn action(app: &mut SoundApp, ui: &mut Ui, id: &str, label: &str, command: &str)
 }
 
 fn view(app: &mut SoundApp, ui: &mut Ui, label: &str, command: &str, selected: bool) {
-    let response = ui.add_sized([0.0, 30.0], egui::Button::new(label).selected(selected));
+    let response = match command {
+        "transport.stop" => timeline_icon(ui, "stop", label, selected, "Stop (Space)"),
+        "transport.play" => timeline_icon(ui, "play", label, selected, "Play (Space)"),
+        "options.loop_playback" => timeline_icon(ui, "loop", label, selected, "Loop playback"),
+        "options.click" => timeline_icon(ui, "click", label, selected, "Metronome"),
+        _ => ui.add_sized([0.0, 30.0], egui::Button::new(label).selected(selected)),
+    };
     crate::assistant::register(app, command, &response, label);
     if response.clicked() {
         run(app, command, json!({}));
     }
+}
+
+fn timeline_icon(ui: &mut Ui, icon: &str, label: &str, selected: bool, tooltip: &str) -> egui::Response {
+    crate::widgets::icon_button(ui, vec2(34.0, 32.0), icon, selected, tooltip).accessible_name(label)
 }
 
 fn actions(app: &mut SoundApp, ui: &mut Ui) {
@@ -68,34 +83,44 @@ fn actions(app: &mut SoundApp, ui: &mut Ui) {
 fn tools(app: &mut SoundApp, ui: &mut Ui) {
     ui.horizontal_wrapped(|ui| {
         let current = app.engine.session().edit.tool;
-        for (tool, label) in
-            [(Tool::Grabber, "Move"), (Tool::Selector, "Range"), (Tool::Trim, "Trim"), (Tool::Pencil, "Draw"), (Tool::Smart, "Smart")]
-        {
-            let response = ui.add_sized([0.0, 28.0], egui::Button::new(label).selected(current == tool));
+        for (tool, icon, label) in [
+            (Tool::Grabber, "grabber", "Move"),
+            (Tool::Selector, "selector", "Range"),
+            (Tool::Trim, "trim", "Trim"),
+            (Tool::Pencil, "pencil", "Draw"),
+            (Tool::Smart, "smart", "Smart"),
+        ] {
+            let tooltip = tool.fkey().map_or_else(|| "Smart tool (F6+F7 or F7+F8)".into(), |key| format!("{label} ({key})"));
+            let response = timeline_icon(ui, icon, label, current == tool, &tooltip);
             crate::assistant::register(app, &format!("workspace.tool.{}", tool.id()), &response, label);
             if response.clicked() {
                 run(app, "edit.tool", json!({"tool":tool.id()}));
             }
         }
         ui.separator();
-        let mut snap = app.engine.session().edit.edit_mode.is_grid();
-        let response = ui.checkbox(&mut snap, "Snap");
+        let snap = app.engine.session().edit.edit_mode.is_grid();
+        let response = timeline_icon(ui, "snap", "Snap", snap, "Snap to grid");
         crate::assistant::register(app, "workspace.snap", &response, "Snap to grid");
-        if response.changed() {
-            run(app, "edit.mode", json!({"mode":if snap {"grid"} else {"slip"}}));
+        if response.clicked() {
+            run(app, "edit.mode", json!({"mode":if snap {"slip"} else {"grid"}}));
         }
         let grid = app.engine.session().edit.grid.label();
-        let grid_response = craft_ui::ComboBox::from_label("Grid").selected_text(&grid).width(95.0).show_ui(ui, |ui| {
+        let (grid_icon, _) = ui.allocate_exact_size(vec2(20.0, 24.0), egui::Sense::hover());
+        crate::icons::draw(ui.painter(), grid_icon.shrink(2.0), "grid", theme::Tokens::current().text_dim);
+        let grid_response = craft_ui::ComboBox::from_id_salt("workspace.grid").selected_text(&grid).width(95.0).show_ui(ui, |ui| {
             for value in ["1 bar", "1/4", "1/8", "1/16", "1/32"] {
                 if ui.selectable_label(grid == value, value).clicked() {
                     run(app, "view.grid", json!({"value":value}));
                 }
             }
         });
-        crate::assistant::register(app, "workspace.grid", &grid_response.response, "Grid resolution");
+        let response = grid_response.response.accessible_name("Grid").on_hover_text("Grid resolution");
+        crate::assistant::register(app, "workspace.grid", &response, "Grid resolution");
         action(app, ui, "workspace.zoomOut", "Zoom out", "view.zoom_out");
         action(app, ui, "workspace.zoomIn", "Zoom in", "view.zoom_in");
-        ui.menu_button("More tools", |ui| {
+        let more = timeline_icon(ui, "more", "More tools", false, "More timeline tools");
+        crate::assistant::register(app, "workspace.moreTools", &more, "More timeline tools");
+        egui::Popup::menu(&more).show(|ui| {
             for (label, tool) in [("Zoom tool", Tool::Zoom), ("Scrub audio", Tool::Scrubber)] {
                 if ui.button(label).clicked() {
                     run(app, "edit.tool", json!({"tool":tool.id()}));
@@ -122,16 +147,12 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
         action(app, ui, "transport.rtz", "Go to start", "transport.rtz");
         view(app, ui, "Stop", "transport.stop", !app.is_playing());
         view(app, ui, "Play", "transport.play", app.is_playing());
-        let response = ui.add_sized(
-            [86.0, 32.0],
-            egui::Button::new(RichText::new("Record").color(if app.engine.transport.recording { egui::Color32::WHITE } else { t.auto_write }))
-                .selected(app.engine.transport.recording),
-        );
+        let record_tip = format!("Record (F12) · {}", app.record_hint().unwrap_or("Record armed audio tracks"));
+        let response = crate::widgets::rec_toggle(ui, vec2(36.0, 32.0), app.engine.transport.recording, &record_tip).accessible_name("Record");
         crate::assistant::register(app, "transport.record", &response, "Record audio");
         if response.clicked() {
             run(app, "transport.record", json!({}));
         }
-        response.on_hover_text(app.record_hint().unwrap_or("Record armed audio tracks"));
         view(app, ui, "Loop", "options.loop_playback", app.engine.session().edit.loop_playback);
         let session = app.engine.session();
         let tick = session.tempo.samples_to_ticks(app.position(), session.sample_rate);
