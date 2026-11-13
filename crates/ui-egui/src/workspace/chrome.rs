@@ -116,6 +116,7 @@ fn tools(app: &mut SoundApp, ui: &mut Ui) {
 }
 
 fn transport(app: &mut SoundApp, ui: &mut Ui) {
+    let t = theme::Tokens::current();
     ui.spacing_mut().item_spacing = vec2(9.0, 5.0);
     ui.horizontal_wrapped(|ui| {
         action(app, ui, "transport.rtz", "Go to start", "transport.rtz");
@@ -123,7 +124,8 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
         view(app, ui, "Play", "transport.play", app.is_playing());
         let response = ui.add_sized(
             [86.0, 32.0],
-            egui::Button::new(RichText::new("Record").color(egui::Color32::from_rgb(245, 100, 110))).selected(app.engine.transport.recording),
+            egui::Button::new(RichText::new("Record").color(if app.engine.transport.recording { egui::Color32::WHITE } else { t.auto_write }))
+                .selected(app.engine.transport.recording),
         );
         crate::assistant::register(app, "transport.record", &response, "Record audio");
         if response.clicked() {
@@ -154,9 +156,9 @@ fn transport(app: &mut SoundApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         let ready = app.player.is_some();
         ui.label(RichText::new(if ready { "Audio connected" } else { "Audio not connected" }).color(if ready {
-            egui::Color32::from_rgb(100, 210, 170)
+            t.meter_green
         } else {
-            egui::Color32::from_rgb(245, 185, 100)
+            t.meter_yellow
         }));
         action(app, ui, "workspace.audioSetup", "Audio setup…", "workspace.audioSetup");
         let status = if app.ui.status.is_empty() {

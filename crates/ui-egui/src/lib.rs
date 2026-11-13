@@ -425,7 +425,7 @@ pub struct SoundApp {
     /// Whether the system fonts are loaded next to the bundled ones; set before the first frame.
     system_fonts: bool,
     /// The palette last applied to the context (light?), so visuals are set only on a change.
-    theme_applied: Option<bool>,
+    theme_applied: Option<(bool, bool)>,
     /// Last panel host context, used to cancel renderer-owned gestures on explicit replacement.
     pub(crate) docking_context: Option<egui::Context>,
     /// Transport simulation when there is no player (tests, offscreen renders).

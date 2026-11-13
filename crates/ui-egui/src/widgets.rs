@@ -44,6 +44,10 @@ pub fn rounded_vgradient(p: &Painter, r: Rect, radius: f32, top: Color32, bottom
 /// and a lit top edge. Returns the face's top colour.
 pub fn raised_key(p: &Painter, r: Rect, faces: [Color32; 2], hovered: bool) -> Color32 {
     let [top, bottom] = if hovered { faces.map(|c| shade(c, 0.06)) } else { faces };
+    if crate::theme::is_modern() {
+        p.rect(r, 4.0, top, if hovered { Stroke::new(1.0, Tokens::current().accent) } else { Stroke::NONE }, StrokeKind::Inside);
+        return top;
+    }
     p.rect_filled(r, 3.0, shade(Tokens::current().slot_well, -0.3));
     rounded_vgradient(p, r.shrink(1.0), 2.0, top, bottom);
     p.hline(r.min.x + 2.0..=r.max.x - 2.0, r.min.y + 1.5, Stroke::new(1.0, shade(top, 0.17)));
@@ -53,12 +57,20 @@ pub fn raised_key(p: &Painter, r: Rect, faces: [Color32; 2], hovered: bool) -> C
 /// A groove across a raised key whose face starts at `top`: a dark line, then a light one.
 pub fn groove(p: &Painter, x: f32, ys: impl Into<egui::Rangef>, top: Color32) {
     let ys = ys.into();
+    if crate::theme::is_modern() {
+        p.vline(x, ys, Stroke::new(1.0, Tokens::current().border));
+        return;
+    }
     p.vline(x, ys, Stroke::new(1.0, shade(top, -0.42)));
     p.vline(x + 1.0, ys, Stroke::new(1.0, shade(top, 0.12)));
 }
 
 pub fn inset(p: &Painter, r: Rect, fill: Color32) {
     let t = Tokens::current();
+    if crate::theme::is_modern() {
+        p.rect_filled(r, 4.0, fill);
+        return;
+    }
     p.rect(r, 2.0, fill, Stroke::new(1.0, t.border), StrokeKind::Inside);
     p.hline(r.min.x + 1.0..=r.max.x - 1.0, r.min.y + 1.5, Stroke::new(1.0, Color32::from_black_alpha(60)));
     p.hline(r.min.x + 2.0..=r.max.x - 2.0, r.max.y + 0.5, Stroke::new(1.0, t.edge_light));
@@ -71,6 +83,17 @@ pub fn key_fill(resp: &Response) -> Color32 {
 
 /// A key in `fill`, softly lit from above; it sinks while pressed.
 pub fn key(p: &Painter, r: Rect, resp: &Response, fill: Color32) {
+    if crate::theme::is_modern() {
+        let t = Tokens::current();
+        p.rect(
+            r.shrink(0.5),
+            4.0,
+            if resp.is_pointer_button_down_on() { shade(fill, -0.08) } else { fill },
+            if resp.hovered() || resp.has_focus() { Stroke::new(1.0, t.accent) } else { Stroke::NONE },
+            StrokeKind::Inside,
+        );
+        return;
+    }
     let face = r.shrink(1.0);
     if resp.is_pointer_button_down_on() {
         vgradient(p, face, shade(fill, -0.14), shade(fill, 0.02));
@@ -83,6 +106,9 @@ pub fn key(p: &Painter, r: Rect, resp: &Response, fill: Color32) {
 
 /// Light from above over a key face already filled with its colour.
 fn key_light(p: &Painter, face: Rect) {
+    if crate::theme::is_modern() {
+        return;
+    }
     vgradient(p, face, Color32::from_white_alpha(26), Color32::from_black_alpha(31));
     p.hline(face.min.x + 1.0..=face.max.x - 1.0, face.min.y + 0.5, Stroke::new(1.0, Color32::from_white_alpha(30)));
 }
@@ -90,12 +116,13 @@ fn key_light(p: &Painter, face: Rect) {
 /// Local colors for shared icon-button interaction; transport-specific states stay in the toolbar.
 fn button_style(selected_fill: Color32, normal_icon: Color32, radius: u8) -> IconButtonStyle {
     let t = Tokens::current();
-    let visuals = |fill, icon| ButtonVisuals { fill, stroke: Stroke::new(1.0, t.button_border), icon };
+    let visuals =
+        |fill, icon| ButtonVisuals { fill, stroke: if crate::theme::is_modern() { Stroke::NONE } else { Stroke::new(1.0, t.button_border) }, icon };
     IconButtonStyle {
         normal: visuals(t.button, normal_icon),
         hovered: visuals(t.button_hi, normal_icon),
         pressed: Some(visuals(shade(t.button, -0.1), normal_icon)),
-        selected: visuals(selected_fill, Color32::WHITE),
+        selected: visuals(if crate::theme::is_modern() && selected_fill == t.accent { t.accent_dark } else { selected_fill }, Color32::WHITE),
         corner_radius: CornerRadius::same(radius),
         focus_stroke: Stroke::new(1.0, t.accent),
     }
@@ -150,7 +177,13 @@ pub fn text_toggle(ui: &mut Ui, size: egui::Vec2, text: &str, on: bool, on_color
     let (r, resp) = ui.allocate_exact_size(size, Sense::click());
     resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), on, tip));
     key(ui.painter(), r, &resp, if on { on_color } else { key_fill(&resp) });
-    let col = if on { t.text_dark } else { t.text };
+    let col = if on && crate::theme::is_modern() {
+        Color32::WHITE
+    } else if on {
+        t.text_dark
+    } else {
+        t.text
+    };
     ui.painter().text(r.center(), Align2::CENTER_CENTER, text, bold((size.y * 0.62).clamp(8.0, 13.0)), col);
     resp.on_hover_text(tip)
 }
@@ -164,6 +197,8 @@ pub fn rec_toggle(ui: &mut Ui, size: egui::Vec2, on: bool, tip: &str) -> Respons
         let rad = size.y * 0.24;
         if on {
             ui.painter().circle_filled(r.center(), rad, tint);
+        } else if crate::theme::is_modern() {
+            ui.painter().circle_stroke(r.center(), rad, Stroke::new(1.5, tint));
         } else {
             rounded_vgradient(
                 ui.painter(),
@@ -173,7 +208,9 @@ pub fn rec_toggle(ui: &mut Ui, size: egui::Vec2, on: bool, tip: &str) -> Respons
                 Color32::from_rgb(176, 76, 72),
             );
         }
-        ui.painter().circle_stroke(r.center(), rad, Stroke::new(1.0, Color32::from_black_alpha(90)));
+        if !crate::theme::is_modern() {
+            ui.painter().circle_stroke(r.center(), rad, Stroke::new(1.0, Color32::from_black_alpha(90)));
+        }
     });
     resp.on_hover_text(tip)
 }
@@ -253,8 +290,12 @@ pub fn pan_knob(ui: &mut Ui, size: f32, value: &mut f32, tip: &str) -> Response 
     let (a0, a1) = if at < mid { (at, mid) } else { (mid, at) };
     p.add(egui::Shape::line(arc(start, start + sweep), Stroke::new(2.0, t.meter_bg)));
     p.add(egui::Shape::line(arc(a0, a1), Stroke::new(2.0, t.counter_text)));
-    p.circle_filled(c + vec2(0.0, 1.0), rad, Color32::from_black_alpha(90));
-    rounded_vgradient(p, Rect::from_center_size(c, Vec2::splat(2.0 * rad)), 2.0 * rad, shade(t.knob_bg, 0.14), shade(t.knob_bg, -0.2));
+    if crate::theme::is_modern() {
+        p.circle_filled(c, rad, t.knob_bg);
+    } else {
+        p.circle_filled(c + vec2(0.0, 1.0), rad, Color32::from_black_alpha(90));
+        rounded_vgradient(p, Rect::from_center_size(c, Vec2::splat(2.0 * rad)), 2.0 * rad, shade(t.knob_bg, 0.14), shade(t.knob_bg, -0.2));
+    }
     p.circle_stroke(c, rad - 0.75, Stroke::new(1.5, t.knob_ring));
     let d = vec2(at.cos(), at.sin());
     p.line_segment([c + d * rad * 0.15, c + d * (rad - 2.5)], Stroke::new(2.0, t.knob_pointer));
@@ -308,10 +349,14 @@ pub fn meter(ui: &Ui, r: Rect, level: f32, hold: f32, clip: bool) {
     for (lo, hi, color) in zones {
         let top = lit.clamp(lo, hi);
         quad(&mut mesh, Rect::from_x_y_ranges(bar.x_range(), y(top)..=y(lo)), [color; 4]);
-        quad(&mut mesh, Rect::from_x_y_ranges(bar.x_range(), y(hi)..=y(top)), [color.gamma_multiply(unlit); 4]);
+        quad(
+            &mut mesh,
+            Rect::from_x_y_ranges(bar.x_range(), y(hi)..=y(top)),
+            [if crate::theme::is_modern() { t.meter_bg } else { color.gamma_multiply(unlit) }; 4],
+        );
     }
     p.add(mesh);
-    for (_, at) in meter_marks(bar).skip(1) {
+    for (_, at) in meter_marks(bar).skip(1).filter(|_| !crate::theme::is_modern()) {
         p.hline(bar.x_range(), p.round_to_pixel_center(at), Stroke::new(1.0, Color32::from_black_alpha(90)));
     }
     let held = level_pos(hold);
@@ -397,16 +442,24 @@ pub fn fader(ui: &mut Ui, r: Rect, db: f32, id: egui::Id, name: &str) -> Option<
     let pos = soundcraft_model::fader_db_to_pos(db);
     let y = slot.max.y - slot.height() * pos;
     let cap = Rect::from_center_size(pos2(slot.center().x, y), vec2(cap_w, FADER_CAP_H));
-    p.rect_filled(cap.translate(vec2(0.0, 2.0)).expand(1.0), 4.0, Color32::from_black_alpha(80));
-    let g = Color32::from_gray;
-    p.rect_filled(cap, 3.0, g(34));
-    let face = cap.shrink(1.0);
-    rounded_vgradient(p, face, 2.0, g(236), g(104));
-    vgradient(p, Rect::from_x_y_ranges(face.x_range(), y + 1.0..=face.max.y - 2.0), g(214), g(150));
-    p.hline(face.min.x + 2.0..=face.max.x - 2.0, face.min.y + 1.5, Stroke::new(1.0, Color32::from_white_alpha(110)));
-    p.hline(face.x_range(), y, Stroke::new(2.0, g(30)));
-    for (x, dx) in [(cap.min.x, 2.5), (cap.max.x, -2.5)] {
-        p.add(egui::Shape::convex_polygon(vec![pos2(x, y - 3.0), pos2(x + dx, y), pos2(x, y + 3.0)], g(34), Stroke::NONE));
+    if crate::theme::is_modern() {
+        let fill = if crate::theme::is_light() { Color32::from_rgb(246, 249, 254) } else { Color32::from_rgb(214, 226, 243) };
+        p.rect(cap, 4.0, fill, Stroke::new(1.0, t.knob_ring), StrokeKind::Inside);
+        for delta in [-3.0, 0.0, 3.0] {
+            p.hline(cap.min.x + 4.0..=cap.max.x - 4.0, y + delta, Stroke::new(1.0, Color32::from_rgb(75, 93, 117)));
+        }
+    } else {
+        p.rect_filled(cap.translate(vec2(0.0, 2.0)).expand(1.0), 4.0, Color32::from_black_alpha(80));
+        let g = Color32::from_gray;
+        p.rect_filled(cap, 3.0, g(34));
+        let face = cap.shrink(1.0);
+        rounded_vgradient(p, face, 2.0, g(236), g(104));
+        vgradient(p, Rect::from_x_y_ranges(face.x_range(), y + 1.0..=face.max.y - 2.0), g(214), g(150));
+        p.hline(face.min.x + 2.0..=face.max.x - 2.0, face.min.y + 1.5, Stroke::new(1.0, Color32::from_white_alpha(110)));
+        p.hline(face.x_range(), y, Stroke::new(2.0, g(30)));
+        for (x, dx) in [(cap.min.x, 2.5), (cap.max.x, -2.5)] {
+            p.add(egui::Shape::convex_polygon(vec![pos2(x, y - 3.0), pos2(x + dx, y), pos2(x, y + 3.0)], g(34), Stroke::NONE));
+        }
     }
     if resp.double_clicked() || (resp.clicked() && ui.input(|i| i.modifiers.alt)) {
         return Some(0.0);

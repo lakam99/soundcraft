@@ -5,6 +5,10 @@ use serde_json::json;
 use soundcraft_model::TrackKind;
 
 pub fn show(app: &mut SoundApp, ui: &mut Ui) {
+    egui::Frame::new().inner_margin(12).show(ui, |ui| body(app, ui));
+}
+
+fn body(app: &mut SoundApp, ui: &mut Ui) {
     egui::ScrollArea::vertical().id_salt("workspace.inspector").auto_shrink([false, false]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 9.0;
         let Some(id) = selected(app) else {

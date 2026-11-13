@@ -52,8 +52,90 @@ fn essential_controls_and_equal_start_paths_remain_visible_at_small_and_hidpi_si
             h.state_mut().run("window.mix", json!({})).unwrap();
             h.run_steps(5);
             shot(&mut h, "modern-demo-mix");
+            h.state_mut().run("ui.theme", json!({"mode":"light"})).unwrap();
+            h.run_steps(5);
+            shot(&mut h, "modern-demo-mix-light");
         }
     }
+}
+
+#[test]
+fn modern_palettes_keep_small_text_and_selected_labels_readable() {
+    let luminance = |color: egui::Color32| {
+        let channel = |value: u8| {
+            let value = f64::from(value) / 255.0;
+            if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
+    };
+    for light in [false, true] {
+        let t = soundcraft_ui_egui::theme::modern_tokens(light);
+        for (ink, fill) in [
+            (t.text, t.panel_bg),
+            (t.text_dim, t.panel_bg),
+            (t.text, t.button),
+            (t.text, t.name_field),
+            (t.text, t.row_selected),
+            (t.text, t.tempo_ruler),
+            (t.auto_write, t.button),
+            (t.meter_green, t.panel_bg2),
+            (t.meter_yellow, t.panel_bg2),
+            (egui::Color32::WHITE, t.accent_dark),
+            (egui::Color32::WHITE, t.name_field_sel),
+            (egui::Color32::WHITE, t.solo),
+            (egui::Color32::WHITE, t.mute),
+            (egui::Color32::WHITE, t.rec),
+            (egui::Color32::WHITE, t.input),
+        ] {
+            let (a, b) = (luminance(ink), luminance(fill));
+            let contrast = (a.max(b) + 0.05) / (a.min(b) + 0.05);
+            assert!(contrast >= 4.5, "Modern light={light}: {ink:?} on {fill:?} has only {contrast:.2}:1 contrast");
+        }
+    }
+}
+
+#[test]
+fn simplified_channel_controls_keep_recording_and_advanced_routing_reachable() {
+    let mut h = harness(vec2(1600.0, 1000.0), 1.0);
+    h.state_mut().engine = soundcraft_engine::demo::demo_engine();
+    h.run_steps(4);
+    let kick = h.state().engine.session().tracks.iter().find(|track| track.name == "Kick").unwrap().id;
+    let record = h.get_by_label("Record enable for Kick");
+    assert!(record.rect().height() >= 24.0, "Modern lane controls need usable targets");
+    record.click();
+    h.run_steps(3);
+    assert!(h.state().engine.session().track(kick).unwrap().mixer.record_arm);
+    assert!(h.query_by_label("Track view for Kick").is_none());
+    h.get_by_label("Track controls for Kick").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Track view for Kick").is_some(), "advanced lane controls remain available in the disclosure");
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    h.state_mut().run("window.mix", json!({})).unwrap();
+    h.run_steps(4);
+    let mixer = h.get_by_role_and_label(egui::accesskit::Role::Tab, "Mix").rect();
+    let fader = h.get_by_label("Kick level").rect();
+    assert!(fader.top() > mixer.bottom() && fader.bottom() < 914.0 && fader.height() >= 80.0);
+    let before = h.state().engine.session().track(kick).unwrap().mixer.volume_db;
+    let from = fader.center();
+    for (position, pressed) in [(from, true), (from + vec2(0.0, 18.0), true), (from + vec2(0.0, 18.0), false)] {
+        h.event(egui::Event::PointerMoved(position));
+        if position == from || !pressed {
+            h.event(egui::Event::PointerButton { pos: position, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        }
+        h.run_steps(2);
+    }
+    assert!(h.state().engine.session().track(kick).unwrap().mixer.volume_db < before);
+    h.get_all_by_label("Mute for Kick").find(|node| node.rect().top() > mixer.bottom()).unwrap().click();
+    h.run_steps(3);
+    assert!(h.state().engine.session().track(kick).unwrap().mixer.mute);
+    assert!(h.query_by_label("Input for Kick").is_none(), "routing wells should not crowd the modern mixer");
+    h.get_by_label("Channel details for Kick").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Input for Kick").is_some());
+    assert!(h.query_by_label("Output for Kick").is_some());
+    assert!(h.query_by_label("Automation mode for Kick").is_some());
+    shot(&mut h, "modern-channel-details");
 }
 
 #[test]

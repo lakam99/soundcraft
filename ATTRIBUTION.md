@@ -13,6 +13,10 @@ All UI icons (tools, transport, track buttons) are drawn procedurally in
 files are used. The app icon (`assets/app-icon/`, a singing nightingale drawn as original SVG by
 the SoundCraft contributors) is listed under Files below.
 
+The effect identity illustrations in `crates/ui-egui/src/panels/plugins/effects.rs`
+are original procedural artwork by the SoundCraft contributors (MIT OR Apache-2.0).
+They use geometric drawings of effect concepts, without third-party artwork.
+
 ## Audio
 
 The demo session's audio (drums, bass, pad) and its MIDI parts are synthesised in code in

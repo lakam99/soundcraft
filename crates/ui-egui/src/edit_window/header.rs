@@ -17,6 +17,10 @@ pub(super) fn track_header(app: &mut SoundApp, ui: &mut Ui, track: &Track, head:
     bg.context_menu(|ui| track_context_menu(app, ui, id));
     color_strip(app, ui, id, head);
     resize_edge(app, ui, track, head);
+    if crate::theme::is_modern() {
+        modern_header(app, ui, track, head, selected, head_bg);
+        return;
+    }
     strip_buttons(app, ui, track, head);
     name_plate(app, ui, track, head, selected);
     playlist_menu(app, ui, track, head, head_bg);
@@ -26,6 +30,50 @@ pub(super) fn track_header(app: &mut SoundApp, ui: &mut Ui, track: &Track, head:
     field_row(app, ui, track, head, head_bg);
     let md = app.meters.get(&id).copied().unwrap_or_default();
     header_meter(ui, Rect::from_min_max(pos2(head.max.x - 8.0, head.min.y + 1.0), pos2(head.max.x, head.max.y - 1.5)), &md, track.channels() >= 2);
+}
+
+/// Keep everyday controls on the lane; specialist controls are disclosed without losing commands.
+fn modern_header(app: &mut SoundApp, ui: &mut Ui, track: &Track, head: Rect, selected: bool, head_bg: Color32) {
+    let t = Tokens::current();
+    name_plate(app, ui, track, head, selected);
+    toggle_keys(app, ui, track, head);
+    let menu_height = (head.height() - 3.0).clamp(1.0, 22.0);
+    let menu = Rect::from_min_size(pos2(head.max.x - 28.0, head.min.y + 1.5), vec2(22.0, menu_height));
+    let mut child = ui.new_child(egui::UiBuilder::new().id_salt(("track-details", track.id.0)).max_rect(menu));
+    let response = child.add_sized(menu.size(), egui::Button::new("…").frame(false)).accessible_name(format!("Track controls for {}", track.name));
+    crate::assistant::register(app, &format!("edit.track.{}.details", track.id.0), &response, &format!("Track controls for {}", track.name));
+    egui::Popup::menu(&response).show(|ui| {
+        ui.label(egui::RichText::new(&track.name).strong());
+        // Reuse the complete advanced control bank inside the disclosure, including playlist,
+        // freeze, voice, automation, timebase and instrument controls. Classic keeps it on the lane.
+        let (area, _) = ui.allocate_exact_size(vec2(136.0, 112.0), Sense::hover());
+        playlist_menu(app, ui, track, area, head_bg);
+        view_selector(app, ui, track, area);
+        voice_row(app, ui, track, area);
+        field_row(app, ui, track, area, head_bg);
+        ui.separator();
+        track_context_menu(app, ui, track.id);
+    });
+    if track.is_folder() {
+        strip_buttons(app, ui, track, head);
+    }
+    if head.height() >= 76.0 {
+        let kind = if track.kind.is_midi() { "MIDI / instrument" } else { track.kind.label() };
+        ui.painter().with_clip_rect(head.shrink(6.0)).text(
+            pos2(head.min.x + 14.0, head.min.y + 70.0),
+            Align2::LEFT_CENTER,
+            kind,
+            regular(11.0),
+            t.text_dim,
+        );
+    }
+    let md = app.meters.get(&track.id).copied().unwrap_or_default();
+    header_meter(
+        ui,
+        Rect::from_min_max(pos2(head.max.x - 5.0, head.min.y + 3.0), pos2(head.max.x - 1.0, head.max.y - 3.0)),
+        &md,
+        track.channels() >= 2,
+    );
 }
 
 /// The colour strip: a click selects the track as the header does, a double click opens the Color
@@ -87,7 +135,7 @@ fn strip_buttons(app: &mut SoundApp, ui: &mut Ui, track: &Track, head: Rect) {
     let id = track.id;
     let h = head.height();
     let at = |x: f32, y: f32, w: f32, h: f32| Rect::from_min_size(pos2(head.min.x + x, head.min.y + y), vec2(w, h));
-    let strip = rgb(track.color);
+    let strip = if crate::theme::is_modern() { Tokens::current().panel_bg2 } else { rgb(track.color) };
     let ink = shade(strip, -0.8);
     let round = at(2.0, 2.0, 10.0, 10.0);
     let rresp = ui.interact(round, ui.scope_id().with(("options", id.0)), Sense::click());
@@ -128,8 +176,13 @@ fn name_plate(app: &mut SoundApp, ui: &mut Ui, track: &Track, head: Rect, select
     let id = track.id;
     let at = |x: f32, y: f32, w: f32, h: f32| Rect::from_min_size(pos2(head.min.x + x, head.min.y + y), vec2(w, h));
     let indent = folder_depth(app.engine.session(), track) as f32 * 10.0;
-    let name_r = at(16.0 + indent, 1.5, 97.0 - indent, 15.0);
-    if selected {
+    let modern = crate::theme::is_modern();
+    let name_r = if modern {
+        at(12.0 + indent, 1.5, (head.width() - 42.0 - indent).max(1.0), (head.height() - 3.0).clamp(1.0, 26.0))
+    } else {
+        at(16.0 + indent, 1.5, 97.0 - indent, 15.0)
+    };
+    if selected && !modern {
         ui.painter().rect_filled(name_r, 2.0, t.name_field_sel);
     }
     let shown_name = if app.engine.session().edit.flag("edit_view.track_number") {
@@ -138,12 +191,21 @@ fn name_plate(app: &mut SoundApp, ui: &mut Ui, track: &Track, head: Rect, select
     } else {
         track.name.clone()
     };
-    let name_color = if selected { t.text_dark } else { t.text.lerp_to_gamma(t.text_dim, 0.4) };
-    let font = bold(12.5);
+    let name_color = if crate::theme::is_modern() {
+        t.text
+    } else if selected {
+        t.text_dark
+    } else {
+        t.text.lerp_to_gamma(t.text_dim, if crate::theme::is_modern() { 0.25 } else { 0.4 })
+    };
+    let font = bold(if crate::theme::is_modern() { 13.0 } else { 12.5 });
     let galley = ui.painter().layout_no_wrap(shown_name.clone(), font.clone(), name_color);
     let overflows = galley.size().x > name_r.width() - 3.0;
-    let (text_pos, align) =
-        if overflows { (pos2(name_r.min.x + 1.5, name_r.center().y), Align2::LEFT_CENTER) } else { (name_r.center(), Align2::CENTER_CENTER) };
+    let (text_pos, align) = if overflows || crate::theme::is_modern() {
+        (pos2(name_r.min.x + if modern { 3.0 } else { 1.5 }, name_r.center().y), Align2::LEFT_CENTER)
+    } else {
+        (name_r.center(), Align2::CENTER_CENTER)
+    };
     ui.painter().with_clip_rect(name_r).text(text_pos, align, &shown_name, font, name_color);
     let mut nresp = ui.interact(name_r, ui.scope_id().with(("name", id.0)), Sense::click_and_drag());
     if overflows {
@@ -235,7 +297,9 @@ fn toggle_keys(app: &mut SoundApp, ui: &mut Ui, track: &Track, head: Rect) {
             (HeaderKey::Mute, m.mute, implied, "mix.mute", mixes),
         ];
         for (i, (key, lit, implied, cmd, shown)) in keys.into_iter().enumerate() {
-            if shown && header_toggle(ui, at(23.0 + i as f32 * 26.0, 20.0, 16.0, 16.0), id, &track.name, key, lit, implied).clicked() {
+            let rect =
+                if crate::theme::is_modern() { at(12.0 + i as f32 * 28.0, 34.0, 24.0, 24.0) } else { at(23.0 + i as f32 * 26.0, 20.0, 16.0, 16.0) };
+            if shown && (h >= 60.0 || !crate::theme::is_modern()) && header_toggle(ui, rect, id, &track.name, key, lit, implied).clicked() {
                 let _ = app.run(cmd, json!({"track": id.0}));
             }
         }
@@ -472,7 +536,9 @@ fn header_toggle(ui: &Ui, r: Rect, track: TrackId, track_name: &str, key: Header
     };
     let [top, bottom] = t.slot_face.map(|f| f.lerp_to_gamma(tint, k));
     raised_key(ui.painter(), r, [shade(top, 0.08), shade(bottom, -0.12)], resp.hovered());
-    let ink = if lit {
+    let ink = if lit && crate::theme::is_modern() {
+        Color32::WHITE
+    } else if lit {
         t.text_dark
     } else if implied {
         t.text.lerp_to_gamma(color, 0.3)

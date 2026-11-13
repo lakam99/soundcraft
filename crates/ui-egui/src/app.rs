@@ -154,9 +154,10 @@ impl SoundApp {
             }
         }
         let light = theme::wants_light(ctx, self.ui.theme);
-        if self.theme_applied != Some(light) || theme::is_light() != light {
-            theme::apply(ctx, light);
-            self.theme_applied = Some(light);
+        let modern = self.ui.modern_workspace;
+        if self.theme_applied != Some((light, modern)) || theme::is_light() != light || theme::is_modern() != modern {
+            theme::apply_workspace(ctx, light, modern);
+            self.theme_applied = Some((light, modern));
         }
         // A logic-only tick while hidden gets no fresh events: `ctx.input` still says what the last
         // completed pass saw. Do not let that stale pointer/keyboard state keep writing automation

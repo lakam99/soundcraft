@@ -127,7 +127,7 @@ pub(super) fn draw_rulers(app: &mut SoundApp, ui: &mut Ui, area: Rect, tl: Rect,
                             Align2::LEFT_CENTER,
                             format!("{}", (ev.bpm * 100.0).round() / 100.0),
                             bold(11.0),
-                            Color32::from_rgb(230, 240, 230),
+                            if crate::theme::is_modern() { t.text } else { Color32::from_rgb(230, 240, 230) },
                         );
                     }
                 }
@@ -141,7 +141,7 @@ pub(super) fn draw_rulers(app: &mut SoundApp, ui: &mut Ui, area: Rect, tl: Rect,
                         Align2::LEFT_CENTER,
                         format!("{}/{}", ev.numerator, ev.denominator),
                         bold(11.0),
-                        Color32::from_rgb(230, 236, 240),
+                        if crate::theme::is_modern() { t.text } else { Color32::from_rgb(230, 236, 240) },
                     );
                 }
             }

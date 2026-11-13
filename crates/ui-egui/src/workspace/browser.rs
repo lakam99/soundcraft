@@ -4,6 +4,10 @@ use egui::{RichText, Ui};
 use serde_json::json;
 
 pub fn show(app: &mut SoundApp, ui: &mut Ui) {
+    egui::Frame::new().inner_margin(12).show(ui, |ui| body(app, ui));
+}
+
+fn body(app: &mut SoundApp, ui: &mut Ui) {
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in [(BrowserTab::Media, "Project media"), (BrowserTab::Instruments, "Instruments"), (BrowserTab::Effects, "Effects")] {
             let response = ui.selectable_label(app.workspace.browser_tab == tab, label);

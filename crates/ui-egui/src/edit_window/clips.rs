@@ -67,7 +67,7 @@ impl GridLines {
 }
 
 pub(super) fn clip_name_height(s: &Session, lane: Rect) -> f32 {
-    if lane.height() >= 40.0 && s.edit.flag("view.clip.name") { 13.0 } else { 0.0 }
+    if lane.height() >= 40.0 && s.edit.flag("view.clip.name") { if crate::theme::is_modern() { 22.0 } else { 13.0 } } else { 0.0 }
 }
 
 pub(super) fn fade_curve_points(fade: soundcraft_model::Fade, fade_in: bool, a: f32, b: f32, body: Rect, pixels_per_point: f32) -> Vec<Pos2> {
@@ -204,7 +204,14 @@ pub(super) fn draw_clip(cl: &ClipLane<'_>, clip: &Clip, dim: bool) {
         wave = Color32::from_rgb(70, 70, 70);
     }
     let body = if s.edit.flag("view.clip.transparency") { body.gamma_multiply(0.55) } else { body };
-    painter.rect(r, CornerRadius::same(2), body, Stroke::new(1.0, Color32::from_rgb(10, 10, 10)), StrokeKind::Inside);
+    let modern = crate::theme::is_modern();
+    painter.rect(
+        r,
+        CornerRadius::same(if modern { 5 } else { 2 }),
+        body,
+        Stroke::new(1.0, if modern { super::rgb(color) } else { Color32::from_rgb(10, 10, 10) }),
+        StrokeKind::Inside,
+    );
     let name_h = clip_name_height(s, lane);
     if name_h > 0.0 {
         let nb = Rect::from_min_max(r.min, pos2(r.max.x, r.min.y + name_h));
@@ -216,8 +223,8 @@ pub(super) fn draw_clip(cl: &ClipLane<'_>, clip: &Clip, dim: bool) {
                 pos2(nb.min.x.max(lane.min.x) + 4.0, nb.center().y),
                 Align2::LEFT_CENTER,
                 &clip.name,
-                bold(10.5),
-                Color32::from_rgb(12, 12, 12),
+                bold(if modern { 11.5 } else { 10.5 }),
+                if modern { Tokens::current().text } else { Color32::from_rgb(12, 12, 12) },
             );
         }
     }
