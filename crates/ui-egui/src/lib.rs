@@ -22,9 +22,11 @@ pub mod credits;
 pub mod dialogs;
 pub mod docking;
 pub mod edit_window;
+pub mod effect_style;
 pub mod fonts;
 pub mod icons;
 pub mod import;
+pub mod live_midi;
 pub mod menus;
 pub mod mix_window;
 pub mod palette;
@@ -115,6 +117,8 @@ pub struct UiState {
     pub track_tint: f32,
     /// Open plugin windows (track, slot).
     pub plugin_windows: Vec<(TrackId, usize)>,
+    /// Per built-in effect material, saved with editor preferences.
+    pub effect_skins: std::collections::BTreeMap<String, effect_style::Skin>,
     /// The send in the Send window (track, slot).
     #[serde(skip)]
     pub send_window: Option<(TrackId, usize)>,
@@ -200,6 +204,7 @@ impl Default for UiState {
             edit_views: vec!["color".into()],
             track_tint: 0.5,
             plugin_windows: Vec::new(),
+            effect_skins: std::collections::BTreeMap::new(),
             send_window: None,
             audiosuite: None,
             status: String::new(),
@@ -292,6 +297,7 @@ pub enum Gesture {
 }
 
 pub struct SoundApp {
+    pub live_midi: crate::live_midi::Runtime,
     pub workspace: workspace::Runtime,
     assistant: assistant::Runtime,
     pub ai_preferences_path: Option<std::path::PathBuf>,

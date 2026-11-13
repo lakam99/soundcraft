@@ -4,6 +4,7 @@ impl SoundApp {
     /// Whether the meters are live: while playing, and while armed or input-monitored tracks are heard.
     pub(crate) fn meters_live(&self) -> bool {
         self.engine.transport.playing
+            || self.live_midi.monitored()
             || (self.recorder.is_some() && self.engine.session().tracks.iter().any(|t| t.mixer.input_monitor || t.mixer.record_arm))
     }
 
@@ -25,6 +26,7 @@ impl SoundApp {
         }
         // The input reopens on the next record or monitor with the new choice.
         self.recorder = None;
+        self.live_midi.attached = false;
         self.recorder_failed = false;
         let player = soundcraft_playback::Player::with_config(self.engine.session_arc(), &self.ui.audio);
         player.locate(at);
@@ -121,6 +123,8 @@ impl SoundApp {
         }
         self.recorder = None;
         self.recorder_failed = false;
+        self.live_midi.attached = false;
+        self.live_midi.reset();
         self.player = Some(Player::with_config(self.engine.session_arc(), &self.ui.audio));
     }
 }

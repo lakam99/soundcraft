@@ -254,6 +254,7 @@ fn main() -> eframe::Result {
             let player =
                 if no_audio { None } else { Some(soundcraft_playback::Player::with_config(Arc::new(engine.session().clone()), &prefs.audio)) };
             let mut app = SoundApp::new(engine, player, services());
+            app.enable_midi_input(std::env::var_os("SOUNDCRAFT_DISABLE_MIDI_INPUT").is_none());
             app.ai_preferences_path = env.prefs_enabled().then(|| prefs_path(&env)).flatten();
             app.set_startup_update_check(true);
             app.set_system_fonts(env.system_fonts());

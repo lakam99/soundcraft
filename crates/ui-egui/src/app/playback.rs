@@ -49,6 +49,7 @@ impl SoundApp {
 
     pub(crate) fn stop_play(&mut self) {
         if let Some(p) = &self.player {
+            self.engine.transport.position = p.position();
             // Half-speed is a separate command. Stop must not leave that rate for the next Play.
             p.set_speed(1.0);
             p.stop();
@@ -59,6 +60,7 @@ impl SoundApp {
         self.sim = None;
         self.engine.transport.playing = false;
         self.engine.transport.recording = false;
+        self.live_midi.reset();
         let stop_at = self.engine.transport.position;
         // Snapshot the session flags first: `session_mut` below needs a
         // mutable borrow, so no session borrow may span it.
@@ -100,8 +102,33 @@ impl SoundApp {
             self.record_hint = Some((self.last_frame.unwrap_or_default(), why));
             return;
         }
-        self.ensure_input();
-        let takes = match self.arm_recorder() {
+        let midi = self.engine.session().tracks.iter().any(|t| t.kind.is_midi() && t.mixer.record_arm);
+        if self.engine.session().tracks.iter().filter(|t| t.kind.is_midi() && t.mixer.record_arm).count() > 128 {
+            self.ui.status = "Record at most 128 MIDI tracks at once; disarm extra tracks first.".into();
+            return;
+        }
+        let audio = self.engine.session().tracks.iter().any(|t| t.kind == soundcraft_model::TrackKind::Audio && t.mixer.record_arm);
+        if midi && (self.engine.session().edit.loop_record || self.engine.session().edit.loop_playback) {
+            self.ui.status = "Turn off Loop Record and Loop Playback before recording MIDI. Use a selection for punch recording.".into();
+            return;
+        }
+        if midi && self.engine.session().tracks.iter().any(|t| t.kind.is_midi() && t.mixer.record_arm && t.instrument.is_none()) {
+            self.ui.status = "Choose an instrument in the track inspector before recording MIDI.".into();
+            return;
+        }
+        self.poll_live_midi();
+        let missing = self.live_midi.missing_input(self.engine.session());
+        if midi
+            && self.live_midi.hardware_enabled
+            && let Some(track) = missing
+        {
+            self.ui.status = format!("MIDI input for {track} is not ready. Select its keyboard in the inspector, then press Reconnect if needed.");
+            return;
+        }
+        if audio {
+            self.ensure_input();
+        }
+        let takes = match if audio { self.arm_recorder() } else { Ok(Vec::new()) } {
             Ok(takes) => takes,
             Err(err) => {
                 self.ui.status = format!("Cannot record: {err}");
@@ -119,6 +146,7 @@ impl SoundApp {
             self.record_start = self.position();
             self.punch = None;
             self.plan_recording(takes, None);
+            self.begin_midi_recording(false);
             return;
         }
         let e = self.engine.session().edit.clone();
@@ -132,20 +160,22 @@ impl SoundApp {
             // Record into the selection when there is one (punch), with pre/post-roll if enabled;
             // the take is trimmed back to the punch range afterwards.
             let (pre, post) = if e.pre_post_roll { (e.pre_roll, e.post_roll) } else { (0, 0) };
-            let from = (sel.start - pre).max(0);
+            let from = sel.start.saturating_sub(pre).max(0);
             self.record_start = from;
             self.punch = (!sel.is_empty()).then_some(sel);
-            let end = (!sel.is_empty()).then_some(sel.end + post);
+            let end = (!sel.is_empty()).then_some(sel.end.saturating_add(post));
             self.start_play(from, end, None);
             self.plan_recording(takes, None);
         }
+        self.begin_midi_recording(true);
     }
 
     /// Remember where the armed `takes` go (split into passes of `pass` when loop recording) and
     /// autosave that plan with the session.
     fn plan_recording(&mut self, takes: Vec<soundcraft_engine::io::Take>, pass: Option<Samples>) {
         let rate = self.recorder.as_ref().map_or(0, |r| r.sample_rate);
-        self.take_plan = Some(soundcraft_engine::io::Recording { start: self.record_start, pass, punch: self.punch, rate, takes });
+        self.take_plan =
+            (!takes.is_empty()).then_some(soundcraft_engine::io::Recording { start: self.record_start, pass, punch: self.punch, rate, takes });
         if let Some(root) = self.autosave_dir.clone() {
             self.queue_autosave(root);
         }
@@ -177,21 +207,30 @@ impl SoundApp {
     }
 
     fn finish_recording(&mut self) {
+        let midi = self.live_midi.recording();
+        self.finish_midi_recording();
+        let midi_status = midi.then(|| self.ui.status.clone());
+        let audio = self.take_plan.is_some();
+        self.finish_audio_recording();
+        self.engine.hold_merge(None);
+        self.engine.end_merge();
+        if let Some(status) = midi_status {
+            self.ui.status = if audio { format!("{status} {}", self.ui.status) } else { status };
+        }
+    }
+
+    fn finish_audio_recording(&mut self) {
         self.engine.transport.recording = false;
         if let Some(p) = &self.player {
             p.set_recording(false);
         }
-        let plan = self.take_plan.take();
+        let Some(plan) = self.take_plan.take() else {
+            self.punch = None;
+            return;
+        };
         let Some(r) = &mut self.recorder else { return };
         let (takes, problem) = r.finish();
         let tracks = takes.len().max(1);
-        let plan = plan.unwrap_or_else(|| soundcraft_engine::io::Recording {
-            start: self.record_start,
-            pass: None,
-            punch: self.punch,
-            rate: 0,
-            takes: Vec::new(),
-        });
         self.punch = None;
         self.autosaved_rev = 0;
         let ids = soundcraft_engine::io::place_recording(&mut self.engine, &plan, takes);
@@ -214,7 +253,7 @@ impl SoundApp {
         let playing = self.is_playing();
         let may_write =
             playing && self.engine.session().tracks.iter().any(|t| matches!(t.mixer.automation_mode, M::Write | M::Touch | M::Latch | M::TouchLatch));
-        self.engine.hold_merge(may_write.then_some(PASS));
+        self.engine.hold_merge(if self.live_midi.recording() { Some("midi-recording") } else { may_write.then_some(PASS) });
         if !playing && self.touched.is_empty() && self.touched_sends.is_empty() {
             self.last_write_at = i64::MIN;
             return;
@@ -396,7 +435,9 @@ impl SoundApp {
                     self.play_from_selection();
                 }
                 TransportRequest::Scrub(at) => self.engine.transport.position = at,
-                TransportRequest::AllNotesOff => {}
+                TransportRequest::AllNotesOff => {
+                    let _ = self.run("midi.panic", json!({}));
+                }
             }
         }
         // Read back the position.

@@ -23,6 +23,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod devices;
+pub mod midi_input;
 pub mod record;
 
 pub use devices::AudioConfig;
@@ -119,6 +120,7 @@ enum Cmd {
     OldSessions(SyncSender<Arc<Session>>),
     Input(Arc<record::InputRing>),
     Recording(bool),
+    MidiInput(Arc<midi_input::MidiBus>),
     Play {
         from: Samples,
         end: Option<Samples>,
@@ -173,6 +175,9 @@ pub struct Player {
 }
 
 impl Player {
+    pub fn set_midi_input(&self, bus: Arc<midi_input::MidiBus>) {
+        let _ = self.tx.send(Cmd::MidiInput(bus));
+    }
     /// Open the default output device. Never fails: without a device it runs a silent clock.
     pub fn new(session: Arc<Session>) -> Player {
         Player::with_config(session, &AudioConfig::default())

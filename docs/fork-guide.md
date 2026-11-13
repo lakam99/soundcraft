@@ -10,7 +10,15 @@ controls; the **Browser** contains project media, instruments and effects.
 Use **F2** for the MIDI editor, **F3** for Mix, **F4** for Inspector and **F5** for
 Browser. **Write MIDI** in an empty arrangement creates an instrument and a part
 ready for drawing notes. Audio options offers Mono and Stereo track creation.
-Live MIDI input is not available in this build.
+For a MIDI keyboard, add an Instrument track, choose the keyboard and channel in
+the Inspector, enable Monitor, arm it and press Record. Stop finalizes the MIDI
+part; Play auditions it. MIDI-only takes do not open a microphone. Disable Loop
+Record/Playback first. Device loss stops and keeps the take; Reconnect retries the
+input and Silence held notes clears notes/pedal state.
+
+Built-in effects have rotary controls with Shift fine adjustment, keyboard arrows,
+exact numeric entry and reset. Their skin selector changes the material and dial
+style; choices are saved per effect with editor preferences.
 
 **Window → Workspace → Classic** restores the specialist interface. Upgrades keep
 the original panel arrangement there, and each workspace remembers its own

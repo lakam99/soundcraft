@@ -136,6 +136,29 @@ mod record_tests {
     }
 
     #[test]
+    fn simultaneous_audio_and_midi_placement_share_one_record_undo() {
+        let path = std::env::temp_dir().join(format!("soundcraft-midi-audio-{}.wav", std::process::id()));
+        let mut e = Engine::default();
+        e.execute("track.new", &json!({"name":"Keys","kind":"instrument"})).unwrap();
+        e.execute("track.new", &json!({"name":"Voice","kind":"audio"})).unwrap();
+        let audio = e.session().tracks[1].id;
+        let history = e.undo_history().len();
+        e.hold_merge(Some("midi-recording"));
+        e.execute_merged("midi.record_take", &json!({"track":"Keys","start":0,"length":128,"sequence":{"notes":[],"ctrls":[]}}), "midi-recording")
+            .unwrap();
+        write_take(&path, 128);
+        assert_eq!(add_recording(&mut e, 0, vec![(audio, path.clone())], None).len(), 1);
+        e.hold_merge(None);
+        e.end_merge();
+        assert_eq!(e.undo_history().len(), history + 1);
+        assert!(e.undo());
+        assert!(e.session().tracks.iter().all(|track| track.clips().is_empty()));
+        assert!(e.redo());
+        assert!(e.session().tracks.iter().all(|track| track.clips().len() == 1));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn armed_tracks_get_new_take_files_used_in_place() {
         let dir = std::env::temp_dir().join(format!("soundcraft-takes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

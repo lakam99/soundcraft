@@ -41,6 +41,9 @@ here. The subset uses default_fonts; the parent face uses monochrome_emoji_fonts
 
 ## Files
 
+The effect materials and rotary dial artwork in `crates/ui-egui/src/effect_style.rs`
+are original procedural work by SoundCraft contributors, licensed MIT OR Apache-2.0.
+
 | Path | Author | Source | License |
 |---|---|---|---|
 | `assets/app-icon/icon.svg` | SoundCraft contributors | original (hand-placed SVG paths; placeholder app icon) | MIT OR Apache-2.0 |

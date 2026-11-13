@@ -30,7 +30,7 @@ pub(super) fn plugin_windows(app: &mut SoundApp, ctx: &egui::Context) {
         let window = if modern_effect {
             window
                 .default_height((ctx.content_rect().height() - 170.0).clamp(240.0, 600.0))
-                .frame(egui::Frame::window(&ctx.global_style()).fill(Tokens::current().panel_bg))
+                .frame(egui::Frame::window(&ctx.global_style()).fill(crate::effect_style::skin(app, info).face()))
         } else {
             window
         };

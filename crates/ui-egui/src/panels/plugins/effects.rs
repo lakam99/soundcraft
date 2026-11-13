@@ -2,7 +2,7 @@
 use crate::{SoundApp, theme::Tokens};
 use egui::{Color32, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use serde_json::json;
-use soundcraft_dsp::{ParamInfo, PluginInfo, Taper, Unit};
+use soundcraft_dsp::{ParamInfo, PluginInfo, Unit};
 use soundcraft_model::{Insert, TrackId};
 mod identity;
 pub(super) use identity::identity;
@@ -10,7 +10,9 @@ pub(super) use identity::identity;
 pub(super) fn show(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize, info: &PluginInfo, ins: &Insert) {
     let Some(style) = identity(info.id) else { return };
     let t = Tokens::current();
-    let accent = crate::theme::rgb(style.accent);
+    let accent =
+        if crate::theme::is_light() { crate::theme::rgb(style.accent).lerp_to_gamma(Color32::BLACK, 0.42) } else { crate::theme::rgb(style.accent) };
+    let skin = crate::effect_style::skin(app, info);
     let compact = ui.available_height() < 520.0 || ui.ctx().content_rect().height() < 720.0;
     ui.style_mut().visuals.selection.bg_fill = accent.lerp_to_gamma(Color32::BLACK, 0.68);
     ui.style_mut().visuals.widgets.hovered.bg_stroke.color = accent;
@@ -29,15 +31,32 @@ pub(super) fn show(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize,
         crate::assistant::register(app, &format!("effect.{}.{}.presets", track.0, slot), &response, "Effect presets");
         ui.add(egui::Label::new(RichText::new(&ins.preset).small().color(t.text_dim)).truncate());
     });
+    let mut selected = app.ui.effect_skins.get(info.id).copied().unwrap_or_default();
+    let response = craft_ui::ComboBox::from_id_salt(("effect-skin", track.0, slot))
+        .selected_text(selected.label())
+        .show_ui(ui, |ui| {
+            for choice in crate::effect_style::Skin::ALL {
+                ui.selectable_value(&mut selected, choice, choice.label());
+            }
+        })
+        .response
+        .accessible_name("Effect skin");
+    crate::assistant::register(app, &format!("effect.{}.{}.skin", track.0, slot), &response, "Effect skin");
+    if selected != app.ui.effect_skins.get(info.id).copied().unwrap_or_default() {
+        let _ = app.run("effects.skin", json!({"plugin":info.id,"skin":selected}));
+    }
     // Long effects scroll inside the native window, including on small displays.
     egui::ScrollArea::vertical()
         .id_salt(("effect-body", track.0, slot))
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
         .max_height((ui.ctx().content_rect().height() - 170.0).max(180.0))
         .show(ui, |ui| {
-            egui::Frame::new().fill(t.panel_bg2.lerp_to_gamma(accent, 0.07)).corner_radius(10).inner_margin(if compact { 10 } else { 14 }).show(
-                ui,
-                |ui| {
+            egui::Frame::new()
+                .fill(skin.card().lerp_to_gamma(accent, 0.07))
+                .corner_radius(skin.radius())
+                .stroke(Stroke::new(1.0, t.border))
+                .inner_margin(if compact { 10 } else { 14 })
+                .show(ui, |ui| {
                     ui.horizontal_top(|ui| {
                         let width = (ui.available_width() - 142.0).max(160.0);
                         ui.vertical(|ui| {
@@ -54,8 +73,7 @@ pub(super) fn show(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize,
                             ui.label(RichText::new("Settings illustration").size(10.0).color(t.text_dim));
                         });
                     });
-                },
-            );
+                });
             if matches!(info.id, "eq_1band" | "eq_7band") {
                 response_plot(ui, info, ins, accent, app.engine.session().sample_rate.as_f64() as f32, compact);
             }
@@ -95,7 +113,7 @@ pub(super) fn show(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize,
                 for row in params.chunks(columns) {
                     ui.columns(columns, |columns| {
                         for (column, param) in columns.iter_mut().zip(row) {
-                            parameter(app, column, track, slot, param, ins, accent);
+                            parameter(app, column, track, slot, param, ins, (accent, skin));
                         }
                     });
                 }
@@ -140,13 +158,22 @@ fn section(plugin: &str, param: &str, focus: bool) -> &'static str {
     "Fine tuning"
 }
 
-fn parameter(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize, param: &ParamInfo, ins: &Insert, accent: Color32) {
+fn parameter(
+    app: &mut SoundApp,
+    ui: &mut Ui,
+    track: TrackId,
+    slot: usize,
+    param: &ParamInfo,
+    ins: &Insert,
+    material: (Color32, crate::effect_style::Skin),
+) {
+    let (accent, skin) = material;
     let t = Tokens::current();
     let before = param.clamp(ins.params.get(param.id).copied().unwrap_or(param.default));
     let mut current = before;
     let mut finished = false;
     let mut reset = false;
-    egui::Frame::new().fill(t.panel_bg2).corner_radius(7).inner_margin(10).show(ui, |ui| {
+    egui::Frame::new().fill(skin.card()).stroke(Stroke::new(1.0, t.border)).corner_radius(skin.radius()).inner_margin(10).show(ui, |ui| {
         ui.set_min_width((ui.available_width() - 1.0).max(1.0));
         ui.horizontal(|ui| {
             ui.label(RichText::new(param.name).strong().size(12.0));
@@ -168,8 +195,6 @@ fn parameter(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize, param
                 }
             });
         });
-        ui.label(RichText::new(param.format(current)).monospace().size(17.0).color(t.text));
-        ui.spacing_mut().slider_width = (ui.available_width() - 100.0).max(40.0);
         let response = if !param.choices.is_empty() {
             let mut index = current.round().max(0.0) as usize;
             let response = craft_ui::ComboBox::from_id_salt(("effect-choice", track.0, slot, param.id))
@@ -188,21 +213,38 @@ fn parameter(app: &mut SoundApp, ui: &mut Ui, track: TrackId, slot: usize, param
             current = if on { 1.0 } else { 0.0 };
             response
         } else {
-            let mut slider = egui::Slider::new(&mut current, param.min..=param.max).show_value(true);
-            if param.taper == Taper::Log && param.min > 0.0 {
-                slider = slider.logarithmic(true);
-            }
-            // egui's value field supports exact numeric entry; the prominent readout above adds units.
-            slider = slider.custom_formatter(|value, _| param.format(value as f32)).custom_parser(|text| parse_value(text, param));
-            ui.add(slider)
+            ui.horizontal(|ui| {
+                let response = crate::effect_style::knob(ui, param, &mut current, accent, skin);
+                ui.vertical(|ui| {
+                    ui.add_space(10.0);
+                    let value = ui
+                        .add(
+                            egui::DragValue::new(&mut current)
+                                .range(param.min..=param.max)
+                                .speed(0.0)
+                                .custom_formatter(|value, _| param.format(value as f32))
+                                .custom_parser(|text| parse_value(text, param)),
+                        )
+                        .accessible_name(format!("{} exact value", param.name));
+                    crate::assistant::register(
+                        app,
+                        &format!("effect.{}.{}.{}.value", track.0, slot, param.id),
+                        &value,
+                        &format!("{} exact value", param.name),
+                    );
+                    finished |= value.lost_focus();
+                    ui.label(RichText::new("Double-click value").size(10.0).color(t.text_dim));
+                });
+                response
+            })
+            .inner
         }
         .accessible_name(param.name);
-        let response = response.on_hover_text(format!("{} · double-click the value for exact entry", param.name));
         crate::assistant::register(app, &format!("effect.{}.{}.{}", track.0, slot, param.id), &response, param.name);
         if response.has_focus() {
             ui.painter().rect_stroke(response.rect.expand(2.0), 4.0, Stroke::new(1.0, accent), egui::StrokeKind::Outside);
         }
-        finished = response.drag_stopped() || response.lost_focus();
+        finished |= response.drag_stopped() || response.lost_focus();
     });
     if reset {
         app.engine.end_merge();

@@ -10,6 +10,11 @@ use soundcraft_engine::catalog;
 
 /// UI-layer commands: (id, label, catalog path or "", shortcut).
 pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
+    ("effects.skin", "Effect Skin", "", None),
+    ("midi.devices", "MIDI Input Devices", "", None),
+    ("midi.refresh", "Refresh MIDI Inputs", "Setup > Refresh MIDI Inputs", None),
+    ("midi.panic", "All MIDI Notes Off", "Track > All MIDI Notes Off", None),
+    ("midi.send", "Play MIDI Message", "", None),
     ("workspace.modern", "Modern Workspace", "Window > Workspace > Modern", None),
     ("workspace.classic", "Classic Workspace", "Window > Workspace > Classic", None),
     ("workspace.inspector", "Track Inspector", "Window > Inspector", None),

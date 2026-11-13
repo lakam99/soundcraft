@@ -169,7 +169,11 @@ pub fn command(app: &mut SoundApp, id: &str, params: &Value) -> Option<Result<Va
             let plugin = params.get("plugin").and_then(Value::as_str).unwrap_or("subtractive_synth");
             let name = crate::mix_window::plugin_info(plugin).filter(|info| info.is_instrument).map(|info| info.name);
             match name {
-                Some(name) => app.run("track.new", json!({"kind":"instrument","format":"stereo","name":name,"instrument":plugin})),
+                Some(name) => app.run("track.new", json!({"kind":"instrument","format":"stereo","name":name,"instrument":plugin})).inspect(|_| {
+                    if let Some(track) = selected(app) {
+                        let _ = app.engine.execute("mix.input_monitor", &json!({"track":track.0,"value":true}));
+                    }
+                }),
                 None => Err("Choose an available instrument from the browser".into()),
             }
         }

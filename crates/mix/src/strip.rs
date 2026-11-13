@@ -41,6 +41,7 @@ pub(crate) struct Strip {
     pub(crate) sample: Option<Arc<SourceAudio>>,
     /// MIDI notes currently sounding on the instrument (pitch), for note-offs at stops/seek.
     pub(crate) held: Vec<u8>,
+    pub(crate) live_midi: Vec<[u8; 3]>,
     /// The instrument's next block starts somewhere new: send it the controllers in effect there.
     pub(crate) chase: bool,
     pub(crate) muted: bool,
@@ -140,6 +141,7 @@ impl Strip {
             instrument: None,
             sample: None,
             held: Vec::new(),
+            live_midi: Vec::with_capacity(512),
             chase: true,
             muted: false,
             gr: 0.0,
@@ -288,7 +290,7 @@ fn read_aux_bus(t: &Track, strip: &mut Strip, busses: &HashMap<BusId, BusBuf>, f
 }
 
 /// Render the track's instrument into the strip.
-fn render_instrument(s: &Session, t: &Track, strip: &mut Strip, blk: Block, transport: &Transport) {
+fn render_instrument(s: &Session, t: &Track, strip: &mut Strip, blk: Block, transport: &Transport, timeline: bool) {
     let Block { pos, frames, .. } = blk;
     if let Some(inst) = strip.instrument.as_mut().filter(|i| !i.failed) {
         // #152: push the instrument's stored parameter values into the live plugin
@@ -303,7 +305,24 @@ fn render_instrument(s: &Session, t: &Track, strip: &mut Strip, blk: Block, tran
         if std::mem::take(&mut strip.chase) {
             chase_controllers(s, t, pos, inst);
         }
-        schedule_notes(s, t, pos, frames, inst, &mut strip.held);
+        if timeline && !(transport.recording && t.mixer.record_arm) {
+            schedule_notes(s, t, pos, frames, inst, &mut strip.held);
+        }
+        for [status, a, b] in strip.live_midi.drain(..) {
+            // A track hosts one instrument part. Notes and controllers use channel 1 consistently,
+            // matching timeline playback; capture retains the original keyboard channel.
+            match status & 0xf0 {
+                0x90 => inst.plugin.note_on(0, a, b),
+                0x80 => inst.plugin.note_off(0, a),
+                0xf0 => {
+                    for channel in 0..16 {
+                        inst.plugin.midi(0, [0xb0 | channel, 64, 0]);
+                    }
+                    inst.plugin.all_notes_off();
+                }
+                _ => inst.plugin.midi(0, [status & 0xf0, a, b]),
+            }
+        }
         if strip.buf.len() >= 2 {
             inst.plugin.process(&mut strip.buf, frames);
         } else if let Some(c0) = strip.buf.first_mut() {
@@ -417,10 +436,14 @@ pub(crate) fn process_strip(s: &Session, t: &Track, strip: &mut Strip, busses: &
             monitor_input(s, t, strip, live, frames);
         }
         TrackKind::Audio if live.monitor_only => {}
-        TrackKind::Instrument | TrackKind::Midi if live.monitor_only => {}
+        TrackKind::Instrument | TrackKind::Midi if live.monitor_only => {
+            if t.mixer.input_monitor || t.mixer.record_arm {
+                render_instrument(s, t, strip, blk, &transport, false);
+            }
+        }
         TrackKind::Audio => render_audio_clips(s, t, strip, blk),
         TrackKind::Aux | TrackKind::Folder => read_aux_bus(t, strip, busses, frames),
-        TrackKind::Instrument | TrackKind::Midi => render_instrument(s, t, strip, blk, &transport),
+        TrackKind::Instrument | TrackKind::Midi => render_instrument(s, t, strip, blk, &transport, true),
         _ => {}
     }
     let trim = db_to_gain(t.mixer.trim_db) * if t.mixer.phase_invert { -1.0 } else { 1.0 };

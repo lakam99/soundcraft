@@ -80,6 +80,7 @@ pub(crate) struct AudioState {
     pub(crate) device_rate: f64,
     input: Option<Arc<record::InputRing>>,
     recording: bool,
+    midi_input: Option<Arc<super::midi_input::MidiBus>>,
     /// Retired plugin instances go back to the UI thread to be dropped there.
     garbage: Sender<Vec<Box<dyn Plugin>>>,
     old_sessions: Option<SyncSender<Arc<Session>>>,
@@ -125,6 +126,7 @@ impl AudioState {
             device_rate,
             input: None,
             recording: false,
+            midi_input: None,
             unsent: MeterSnapshot::default(),
             forget_shared: Vec::new(),
         }
@@ -135,6 +137,7 @@ impl AudioState {
         while let Ok(c) = self.rx.try_recv() {
             match c {
                 Cmd::Input(r) => self.input = Some(r),
+                Cmd::MidiInput(bus) => self.midi_input = Some(bus),
                 Cmd::Forget(gone) => {
                     self.unsent.forget(&gone);
                     if self.forget_shared.is_empty() {
@@ -241,6 +244,9 @@ impl AudioState {
         }
         self.mix.monitor_only = !self.playing;
         self.mix.recording = self.recording;
+        if let Some(bus) = &self.midi_input {
+            bus.clock(self.pos, self.session.sample_rate.hz(), self.playing);
+        }
         self.mix.render(&self.session, self.pos, n, &mut self.pending);
         self.send_garbage();
         self.pending_len = n;
@@ -275,8 +281,36 @@ impl AudioState {
     /// Fill an interleaved device buffer.
     pub(crate) fn fill(&mut self, out: &mut [f32], channels: usize) {
         self.drain();
+        if let Some(bus) = &self.midi_input {
+            if bus.take_panic() {
+                self.mix.panic_live_midi();
+            }
+            for _ in 0..super::midi_input::MIDI_QUEUE_CAPACITY {
+                let Some(packet) = bus.pop_audio() else {
+                    break;
+                };
+                if !bus.current(&packet) {
+                    continue;
+                }
+                if packet.message == [0xff, 0, 0] {
+                    self.mix.silence_live_track(packet.track);
+                    continue;
+                }
+                let release = packet.message[0] & 0xf0 == 0x80;
+                if (release
+                    || self.session.track(packet.track).is_some_and(|track| !track.inactive && (track.mixer.input_monitor || track.mixer.record_arm)))
+                    && !self.mix.live_midi(packet.track, packet.message)
+                {
+                    self.mix.panic_live_midi();
+                    bus.lost.fetch_add(1, Ordering::Relaxed);
+                    break;
+                }
+            }
+        }
         let channels = channels.max(1);
-        let monitoring = self.input.is_some() && self.session.tracks.iter().any(|t| t.mixer.input_monitor || t.mixer.record_arm);
+        let monitoring = (self.input.is_some()
+            && self.session.tracks.iter().any(|t| t.kind == soundcraft_model::TrackKind::Audio && (t.mixer.input_monitor || t.mixer.record_arm)))
+            || self.midi_input.as_ref().is_some_and(|bus| bus.active.load(Ordering::Acquire));
         if !self.playing && !monitoring {
             out.iter_mut().for_each(|x| *x = 0.0);
             self.unsent.silence();

@@ -48,6 +48,39 @@ Bypass, factory and user presets, undo and command automation use the same engin
 paths. Hosted plugin editors and the three instrument editors keep their existing
 behavior. Classic retains its original parameter table.
 
+Modern continuous parameters use rotary controls: drag vertically, hold Shift for
+fine adjustment, use arrows when focused, or Ctrl/Command + wheel. Plain scrolling
+scrolls the editor. Double-click the dial or use Reset to restore the default;
+double-click its numeric readout for exact entry. The Effect skin selector offers
+Graphite, Brushed alloy, Porcelain and Ember, plus category-specific automatic
+materials. The choice is remembered per effect in editor preferences, independently
+of projects and audio presets. Decorations show settings, not live audio meters.
+
+## Live MIDI keyboard
+
+Add an Instrument track, choose a sound, then select the keyboard and input channel
+in the Inspector. New instrument tracks monitor the selected track automatically.
+Monitor auditions while stopped; armed tracks receive input regardless of selection.
+Arm the track and press Record to create a growing MIDI take. Stop closes held notes
+and sustain, then Play auditions the recorded part. A take, its checkpoints and mixer
+changes made during it form one Undo step. MIDI-only recording never opens an audio
+input; arming audio tracks alongside instruments also records their audio inputs.
+
+Device and channel routing are saved in the project. A missing saved keyboard stays
+selected and is identified as disconnected. Reconnect refreshes devices and retries
+busy ports; Silence held notes sends immediate cleanup. Device loss or input overflow
+stops the take and retains captured notes. Recorded velocities, release velocities,
+channels, sustain, pressure, pitch bend and other channel controls are retained.
+Each track plays one instrument part: live notes/controllers and timeline playback
+use channel 1 at the instrument, while input-channel filtering occurs before routing.
+
+MIDI recording supports ordinary takes and selection punch with pre/post-roll.
+Loop recording and loop playback must be disabled before a MIDI take. Existing MIDI
+on an armed track is muted while recording, so checkpointed notes do not play twice.
+Stop recording before deleting clips/tracks, changing instruments/routing, seeking
+or changing tempo. Notes are checkpointed in the project for normal autosave recovery.
+Native input uses the OS MIDI backend; browser builds retain MIDI editing/playback.
+
 ## Workspace memory
 
 Modern and Classic store separate layouts and visibility. On upgrading old

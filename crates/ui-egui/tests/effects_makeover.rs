@@ -134,3 +134,48 @@ fn parameter_edit_reset_bypass_factory_preset_and_undo_keep_working() {
     h.run_steps(3);
     assert_eq!(h.state().engine.session().track(track).unwrap().mixer.inserts[0].as_ref().unwrap().params["gain"], 0.0);
 }
+
+#[test]
+fn rotary_drag_is_relative_one_undo_and_skins_persist_outside_the_project() {
+    let mut h = harness("gain", false, vec2(1200.0, 800.0), 1.0);
+    let track = h.state().engine.session().tracks[0].id;
+    let value = |h: &Harness<SoundApp>| {
+        h.state().engine.session().track(track).unwrap().mixer.inserts[0].as_ref().unwrap().params.get("gain").copied().unwrap_or(0.0)
+    };
+    let dial = h.get_by_role_and_label(egui::accesskit::Role::Slider, "Gain").rect();
+    let from = dial.center();
+    h.event(egui::Event::PointerMoved(from));
+    h.event(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+    h.run_steps(2);
+    assert_eq!(value(&h), 0.0, "pressing a dial must not jump its value");
+    for offset in [-10.0, -20.0, -30.0] {
+        h.event(egui::Event::PointerMoved(from + vec2(0.0, offset)));
+        h.run_steps(2);
+    }
+    h.event(egui::Event::PointerButton {
+        pos: from + vec2(0.0, -30.0),
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.run_steps(3);
+    assert!(value(&h) > 0.0);
+    assert!(h.state_mut().engine.undo());
+    h.run_steps(3);
+    assert_eq!(value(&h), 0.0, "one Undo restores a whole dial gesture");
+    let history = h.state().engine.undo_history();
+    h.state_mut().run("effects.skin", json!({"plugin":"gain","skin":"ember"})).unwrap();
+    h.run_steps(3);
+    let saved = serde_json::to_value(&h.state().ui).unwrap();
+    let restored: soundcraft_ui_egui::UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(restored.effect_skins["gain"], soundcraft_ui_egui::effect_style::Skin::Ember);
+    assert_eq!(h.state().engine.undo_history(), history);
+    assert!(h.state_mut().run("effects.skin", json!({"plugin":"gain","skin":"invalid"})).is_err());
+    shot(&mut h, "gain-ember");
+    h.state_mut().run("effects.skin", json!({"plugin":"gain","skin":"brushed"})).unwrap();
+    h.run_steps(3);
+    shot(&mut h, "gain-brushed");
+    h.state_mut().run("effects.skin", json!({"plugin":"gain","skin":"porcelain"})).unwrap();
+    h.run_steps(3);
+    shot(&mut h, "gain-porcelain");
+}

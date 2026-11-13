@@ -153,7 +153,84 @@ fn instrument(app: &mut SoundApp, ui: &mut Ui, track: &soundcraft_model::Track) 
     egui::Popup::menu(&response).show(|ui| crate::mix_window::instrument_menu(app, ui, track.id));
     button(app, ui, "inspector.writeNotes", "+ MIDI part / write notes", "workspace.midiPart", json!({}));
     button(app, ui, "inspector.midiEditor", "Open MIDI editor", "window.midi_editor", json!({"value":true}));
-    ui.label(RichText::new("Draw notes in the MIDI editor or import a MIDI file. Live MIDI input is not available in this build.").small().weak());
+    ui.separator();
+    ui.strong("Keyboard input");
+    let devices = app.live_midi.status.devices.clone();
+    let mut device = track.midi_input.device.clone();
+    let label = device.as_ref().map_or_else(
+        || "All MIDI devices".to_owned(),
+        |id| {
+            devices
+                .iter()
+                .find(|d| &d.id == id)
+                .map_or_else(|| format!("{} (disconnected)", track.midi_input.device_name.as_deref().unwrap_or("Saved keyboard")), |d| d.name.clone())
+        },
+    );
+    let response = craft_ui::ComboBox::from_id_salt("inspector.midiDevice")
+        .selected_text(label)
+        .width(ui.available_width())
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut device, None, "All MIDI devices");
+            for d in &devices {
+                ui.selectable_value(&mut device, Some(d.id.clone()), &d.name);
+            }
+        })
+        .response
+        .accessible_name("MIDI input device");
+    crate::assistant::register(app, "inspector.midiDevice", &response, "MIDI input device");
+    if device != track.midi_input.device {
+        let name = devices.iter().find(|d| Some(&d.id) == device.as_ref()).map(|d| d.name.as_str());
+        run(app, "midi.input", json!({"track":track.id.0,"device":device,"device_name":name}));
+    }
+    let mut channel = track.midi_input.channel;
+    let response = craft_ui::ComboBox::from_id_salt("inspector.midiChannel")
+        .selected_text(channel.map_or_else(|| "All channels".to_owned(), |ch| format!("Channel {ch}")))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut channel, None, "All channels");
+            for ch in 1..=16 {
+                ui.selectable_value(&mut channel, Some(ch), format!("Channel {ch}"));
+            }
+        })
+        .response
+        .accessible_name("MIDI input channel");
+    crate::assistant::register(app, "inspector.midiChannel", &response, "MIDI input channel");
+    if channel != track.midi_input.channel {
+        run(app, "midi.input", json!({"track":track.id.0,"channel":channel}));
+    }
+    ui.horizontal_wrapped(|ui| {
+        for (label, command, on) in
+            [("Monitor", "mix.input_monitor", track.mixer.input_monitor), ("Arm recording", "mix.record_arm", track.mixer.record_arm)]
+        {
+            let response = ui.add(egui::Button::new(label).selected(on));
+            crate::assistant::register(app, &format!("inspector.{command}"), &response, label);
+            if response.clicked() {
+                run(app, command, json!({"tracks":[track.id.0]}));
+            }
+        }
+    });
+    let active = app.uptime - app.live_midi.activity_at < 0.3;
+    ui.label(RichText::new(if active { "● MIDI received" } else { "○ Waiting for MIDI" }).small().color(if active {
+        crate::theme::Tokens::current().accent
+    } else {
+        crate::theme::Tokens::current().text_dim
+    }));
+    if let Some(error) = app.live_midi.status.error.as_ref() {
+        ui.colored_label(crate::theme::Tokens::current().text, error);
+    }
+    for d in devices.iter().filter(|d| d.error.is_some() && device.as_ref().is_none_or(|id| id == &d.id)) {
+        if let Some(error) = &d.error {
+            ui.label(error);
+        }
+    }
+    button(app, ui, "inspector.midiRefresh", "Reconnect / refresh devices", "midi.refresh", json!({}));
+    button(app, ui, "inspector.midiPanic", "Silence held notes", "midi.panic", json!({}));
+    ui.label(
+        RichText::new(
+            "Select a keyboard → Monitor to play → Arm → Record. Monitoring follows the selected track; armed tracks always receive input.",
+        )
+        .small()
+        .weak(),
+    );
 }
 
 fn route(app: &mut SoundApp, ui: &mut Ui, track: &soundcraft_model::Track, input: bool) {

@@ -30,6 +30,7 @@ impl SoundApp {
     /// synthetic-input state.
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
+            live_midi: crate::live_midi::Runtime::default(),
             workspace: crate::workspace::Runtime::default(),
             assistant: crate::assistant::Runtime::default(),
             ai_preferences_path: None,
@@ -192,7 +193,7 @@ impl SoundApp {
                 self.gesture = None;
             }
             // Keep a running automation pass merged until playback stops.
-            if !self.wants_keyboard && self.touched.is_empty() && self.touched_sends.is_empty() {
+            if !self.wants_keyboard && self.touched.is_empty() && self.touched_sends.is_empty() && !self.live_midi.recording() {
                 self.engine.end_merge();
             }
         }
@@ -200,6 +201,7 @@ impl SoundApp {
         self.watch_input();
         // Stop the old playback before sending a replacement session to the audio thread.
         self.handle_transport(dt);
+        self.poll_live_midi();
         if self.engine.revision != self.last_rev {
             self.last_rev = self.engine.revision;
             if let Some(p) = &self.player {
@@ -212,7 +214,12 @@ impl SoundApp {
         self.autosave();
         if self.recorder.is_none()
             && !self.recorder_failed
-            && self.engine.session().tracks.iter().any(|t| t.mixer.input_monitor || t.mixer.record_arm)
+            && self
+                .engine
+                .session()
+                .tracks
+                .iter()
+                .any(|t| t.kind == soundcraft_model::TrackKind::Audio && (t.mixer.input_monitor || t.mixer.record_arm))
         {
             self.ensure_input();
         }
@@ -220,7 +227,7 @@ impl SoundApp {
         // egui 0.37 schedules the delay as given (it no longer subtracts the predicted frame time),
         // so ask for the real interval instead of adding that time back.
         let editors = self.player.as_ref().is_some_and(Player::any_editor_open);
-        ctx.request_repaint_after_secs(if editors { 0.03 } else { 1.0 });
+        ctx.request_repaint_after_secs(if editors || self.live_midi.monitored() || self.live_midi.recording() { 0.016 } else { 1.0 });
         crate::control::drain_screenshots(self, ctx);
         if crate::control::screenshots_need_paint(self) {
             // An admitted capture that has not reached a UI pass needs an explicit hidden paint;

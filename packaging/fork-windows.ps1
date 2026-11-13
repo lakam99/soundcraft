@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$BinaryDirectory,
     [Parameter(Mandatory)][string]$ChatPluginDirectory,
-    [string]$Version = '0.17.2'
+    [string]$Version = '0.17.7'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -12,7 +12,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Commit the verified source before packaging' }
 $sourceCommit = & git -C $projectRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify package source' }
 $pluginCommit = & git -C $pluginRoot rev-parse HEAD
-if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne 'cb38ab373dcf7ce3876418e0a0976af8d44c39c2') { throw 'Unexpected shared plugin license source' }
+if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne 'ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea') { throw 'Unexpected shared plugin license source' }
 & git -C $pluginRoot diff --quiet HEAD --
 if ($LASTEXITCODE -ne 0) { throw 'Shared plugin license source must be clean' }
 $releaseRoot = Join-Path $projectRoot "dist/fork-$Version"

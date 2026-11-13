@@ -138,6 +138,7 @@ impl SoundApp {
             "dialog": self.dialogs.open_name(),
             "frame_ms": self.frame_ms,
             "audio_device": self.player.as_ref().map(|p| p.device_name.clone()),
+            "midi": {"devices":self.live_midi.status,"received":self.live_midi.bus.received.load(std::sync::atomic::Ordering::Relaxed),"lost":self.live_midi.bus.lost.load(std::sync::atomic::Ordering::Relaxed),"recording":self.live_midi.recording(),"monitoring":self.live_midi.monitored()},
             "status": self.ui.status,
         })
     }
