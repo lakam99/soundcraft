@@ -11,8 +11,8 @@ Hours are Opus 5.5 agent-hours.
 1. **Merge or close the open bug-fix PRs** (#123–#134, #146, #148, #75) and fix the rest of the
    correctness backlog (G-04). ≈ 15–25 h.
 2. **Audio interface basics** (G-01): device selection, buffer size, duplex stream, ASIO. ≈ 25–40 h.
-3. **MIDI devices** (G-02): native input/recording implemented in this fork; finish physical
-   device verification, loop recording, external output, thru and clock. ≈ 20–35 h.
+3. **MIDI devices** (G-02): native input/recording verified with a physical Windows keyboard; broaden
+   platform/device verification and finish loop recording, external output, thru and clock. ≈ 20–35 h.
 4. **macOS plugin hosting** (G-05): library-validation entitlement now (#153), then AU editors. ≈ 15–25 h.
 5. **A PR CI that runs `cargo xtask ci`** on Linux, macOS and Windows (G-14). ≈ 5–10 h.
 

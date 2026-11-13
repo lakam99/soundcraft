@@ -31,7 +31,7 @@ Legend: ✅ works · 🟡 partial · ❌ missing.
 
 | Feature | Pro Tools | SoundCraft (all platforms) |
 |---|---|---|
-| MIDI input devices (keyboards, pads) | ✅ | 🟡 Native device/channel selection, stopped audition and checkpointed recording; synthetic coverage, physical keyboard performance verification pending. Web retains editing/playback. |
+| MIDI input devices (keyboards, pads) | ✅ | 🟡 Native device/channel selection, stopped audition and checkpointed recording; synthetic coverage and physical Windows keyboard monitoring/recording verified; other platforms need hardware verification. Web retains editing/playback. |
 | MIDI output to external gear | ✅ | ❌ |
 | MIDI Thru, input filter | ✅ | 🟡 Device/channel filtering into selected monitored or armed instrument tracks; external MIDI thru remains missing |
 | MIDI Beat Clock out, MTC generate/chase | ✅ | ❌ |

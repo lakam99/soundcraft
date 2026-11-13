@@ -67,7 +67,7 @@ When you close a gap, delete its entry (or shrink it) in the same PR, and bump t
 
 - **Implemented in the fork:** native keyboard input, per-track device/channel routing, stopped
   instrument audition and checkpointed musical takes with note/controller cleanup. Automated
-  workflow coverage is present; a physical performance check is still pending.
+  workflow coverage and a physical Windows keyboard monitoring/recording check passed.
 - **Missing:** external MIDI output/thru, MIDI clock/MTC, loop take recording and broad
   cross-platform/device verification. The legacy MIDI Studio setup still stores names.
 - **Impact:** external hardware production and loop MIDI tracking remain incomplete.

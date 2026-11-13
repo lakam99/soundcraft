@@ -123,8 +123,9 @@ mutated and truncated movies. Field reports from the first public week are track
 ## Progress log
 
 Fork update: native MIDI input/monitoring and checkpointed MIDI recording, per-track routing,
-rotary built-in effect controls and saved material skins. Physical performance verification
-is pending; external MIDI output/clock and loop MIDI recording remain gaps.
+rotary built-in effect controls and saved material skins. Physical keyboard monitoring and
+recording were verified on Windows; external MIDI output/clock, loop MIDI recording and
+broader platform/device verification remain gaps.
 
 - **2026-10-25:** Alt+Shift+E (`view.zoom_toggle_cancel`) and an Alt-click on the Zoom Toggle button cancel Zoom Toggle and keep the current view: the zoom, the scroll and the track heights stay as they are, and the button is no longer lit. The next Zoom Toggle zooms in from that view and goes back to it. No readiness percentage change.
 - **2026-10-25:** Tracks and Groups and the Clip List sit in dock columns that run the Edit window's full height at its left and right edges, with the MIDI Editor under the session view between them; Mix docks Tracks and Groups at its left edge. A panel dragged onto a dock group joins it as a tab, stacks above or below it, or makes a new column; one dragged to an empty window edge makes a dock there. A list with no saved place reopens in its dock, and makes the dock again when it is gone. Preferences and window configurations saved with the earlier split-frame layouts load with the new default layouts and keep their other settings. No readiness percentage change.
