@@ -54,6 +54,10 @@ use tracks::{in_edit_window, track_row};
 use universe::universe;
 
 pub fn show(app: &mut SoundApp, ui: &mut Ui) {
+    if app.ui.modern_workspace {
+        crate::workspace::show(app, ui);
+        return;
+    }
     let t = Tokens::current();
     drive_drag(app, ui.ctx());
     egui::Panel::top("edit_toolbar").exact_size(toolbar::HEIGHT).frame(egui::Frame::NONE.fill(t.toolbar_bg)).show(ui, |ui| toolbar::show(app, ui));
@@ -65,12 +69,13 @@ pub fn show(app: &mut SoundApp, ui: &mut Ui) {
     crate::docking::show(app, ui, crate::MainWindow::Edit);
 }
 
-/// Three dock toggle tabs for MIDI Editor, Memory Locations and Undo History.
+/// Dock toggles for the mixer, MIDI Editor, Memory Locations and Undo History.
 fn dock_tabs(app: &mut SoundApp, ui: &mut Ui) {
     let t = Tokens::current();
     let r = ui.max_rect();
     let mut x = r.min.x + 10.0;
     for (label, on, id) in [
+        ("MIX", app.ui.show_mix && !app.ui.mix_separate, "window.toggle_mix_edit"),
         ("MIDI EDITOR", app.ui.show_midi_editor, "window.midi_editor"),
         ("MEMORY LOCATIONS", app.ui.show_memory_locations, "window.memory_locations"),
         ("UNDO HISTORY", app.ui.show_undo_history, "window.undo_history"),
@@ -81,7 +86,10 @@ fn dock_tabs(app: &mut SoundApp, ui: &mut Ui) {
             ui.painter().rect_filled(tr, 3.0, t.accent_dark);
         }
         ui.painter().galley(pos2(tr.min.x + 8.0, tr.center().y - g.size().y * 0.5), g, Color32::WHITE);
-        if ui.interact(tr, ui.scope_id().with(("dock", label)), Sense::click()).clicked() {
+        let response = ui.interact(tr, ui.scope_id().with(("dock", label)), Sense::click());
+        response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), on, label));
+        crate::assistant::register(app, &format!("dock.toggle.{id}"), &response, label);
+        if response.clicked() {
             let _ = app.run(id, json!({}));
         }
         x = tr.max.x + 6.0;

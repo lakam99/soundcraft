@@ -30,6 +30,7 @@ impl SoundApp {
     /// synthetic-input state.
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
+            workspace: crate::workspace::Runtime::default(),
             assistant: crate::assistant::Runtime::default(),
             ai_preferences_path: None,
             recent_seen: engine.path.clone(),
@@ -394,7 +395,7 @@ impl SoundApp {
         }
         // Here, not in logic(): a covered or minimized window runs only logic(), with no vsync to pace it.
         if self.meters_live() {
-            let hz = if self.ui.window == MainWindow::Mix { 60 } else { 30 };
+            let hz = if self.ui.window == MainWindow::Mix || self.ui.show_mix { 60 } else { 30 };
             ctx.request_repaint_after(std::time::Duration::from_millis(1000 / hz));
         } else if self.meters.values().any(|m| m.level[0] > 0.0001) {
             ctx.request_repaint_after(std::time::Duration::from_millis(80));

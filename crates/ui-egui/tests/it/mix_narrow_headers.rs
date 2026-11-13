@@ -20,8 +20,9 @@ fn painted_labels(narrow: bool) -> Vec<(String, f32, bool)> {
 }
 
 fn painted_labels_with(narrow: bool, fonts: Option<FontDefinitions>) -> Vec<(String, f32, bool)> {
-    let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
-    app.run("window.mix", json!({})).unwrap();
+    let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
+    // Section captions in the full-height mixer used by the separate window.
+    app.ui.window = soundcraft_ui_egui::MainWindow::Mix;
     app.run("view.mix_section", json!({"section": "all"})).unwrap();
     app.run("view.mix_section", json!({"section": "instruments"})).unwrap();
     app.ui.narrow_mix = narrow;

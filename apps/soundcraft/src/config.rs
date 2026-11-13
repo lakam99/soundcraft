@@ -93,6 +93,7 @@ fn read_ui(path: &std::path::Path, recover_docking: bool) -> Result<Option<sound
             }
         }
     }
+    soundcraft_ui_egui::workspace::migrate_legacy(&mut saved)?;
     let state: soundcraft_ui_egui::UiState = serde_json::from_value(saved).map_err(|error| format!("Settings could not be restored: {error}"))?;
     docking::validate(&state.docking)?;
     docking::validate_mix(&state.mix_docking)?;
@@ -144,7 +145,7 @@ mod config_tests {
         let directory = std::env::temp_dir().join(format!("soundcraft-dock-prefs-{}", std::process::id()));
         let path = directory.join("ui.json");
         let _ = std::fs::remove_dir_all(&directory);
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         app.run("ui.dock", serde_json::json!({"operation":"float","panel":"tracks","rect":[80,90,260,400]})).unwrap();
         app.run("ui.dock", serde_json::json!({"operation":"close","panel":"tracks"})).unwrap();
         app.ui.theme = soundcraft_ui_egui::theme::ThemeMode::Light;
@@ -183,7 +184,7 @@ mod config_tests {
         let directory = std::env::temp_dir().join(format!("soundcraft-future-dock-prefs-{}", std::process::id()));
         std::fs::create_dir_all(&directory).unwrap();
         let path = directory.join("ui.json");
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         app.run("ui.dock", serde_json::json!({"operation":"float","panel":"tracks","rect":[80,90,260,400]})).unwrap();
         app.ui.theme = soundcraft_ui_egui::theme::ThemeMode::Light;
         app.ui.narrow_mix = true;

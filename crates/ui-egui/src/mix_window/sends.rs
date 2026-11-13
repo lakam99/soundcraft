@@ -431,7 +431,7 @@ mod tests {
     /// back, with the search field in the same place and the footer under the list.
     #[test]
     fn the_send_destination_menu_grows_back_when_the_search_is_cleared() {
-        let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
         for n in 0..30 {
             app.run("mix.new_bus", json!({"name": format!("Aux {n}")})).unwrap();
         }
@@ -479,7 +479,7 @@ mod tests {
     /// Kick's send A slot in a test harness, with buses "Aux" and "Other"; with `existing_send`, the
     /// slot already sends to "Other".
     fn kick_send_harness(existing_send: bool) -> (Harness<'static, (SoundApp, TrackId)>, TrackId) {
-        let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
         app.run("mix.new_bus", json!({"name": "Aux"})).unwrap();
         app.run("mix.new_bus", json!({"name": "Other"})).unwrap();
         let kick = app.engine.session().track_by_name("Kick").unwrap().id;

@@ -81,7 +81,7 @@ fn every_track_comments_field_is_named_for_its_track() {
     let tracks: Vec<Track> = engine.session().tracks.iter().take(2).cloned().collect();
     assert_eq!(tracks.len(), 2);
     let names: Vec<String> = tracks.iter().map(|t| format!("Comments for {}", t.name)).collect();
-    let app = SoundApp::new(engine, None, crate::Services::default());
+    let app = SoundApp::new_classic(engine, None, crate::Services::default());
     let mut h = Harness::new_ui_state(
         move |ui, app: &mut SoundApp| {
             for (i, track) in tracks.iter().enumerate() {
@@ -268,7 +268,7 @@ fn hold_clears_when_playhead_returns_or_transport_stops() {
 /// Cancel Zoom Toggle with Zoom Toggle already off keeps the scroll position a pending toggle-off restores.
 #[test]
 fn a_cancel_with_zoom_toggle_off_keeps_the_scroll_to_restore() {
-    let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, crate::Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, crate::Services::default());
     app.edit_layout.zoom_back = Some(120.0);
     let v = app.run("view.zoom_toggle_cancel", json!({})).unwrap();
     assert_eq!(v["canceled"], json!(false));
@@ -282,7 +282,7 @@ fn harness(n: usize) -> Harness<'static, SoundApp> {
 }
 
 fn harness_with(engine: soundcraft_engine::Engine) -> Harness<'static, SoundApp> {
-    let app = SoundApp::new(engine, None, crate::Services::default());
+    let app = SoundApp::new_classic(engine, None, crate::Services::default());
     let builder = Harness::builder().with_size(vec2(1400.0, 900.0)).with_step_dt(1.0 / 60.0);
     let builder = if std::env::var_os("SOUNDCRAFT_FADE_SHOTS").is_some() { builder.wgpu() } else { builder };
     let mut h = builder.build_ui_state(

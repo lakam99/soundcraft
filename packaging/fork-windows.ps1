@@ -49,7 +49,7 @@ foreach ($document in @('README.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 
     Copy-Item -LiteralPath (Join-Path $projectRoot $document) -Destination $stage
 }
 [IO.Directory]::CreateDirectory((Join-Path $stage 'docs')) | Out-Null
-Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/fork-guide.md') -Destination (Join-Path $stage 'docs')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/fork-guide.md'), (Join-Path $projectRoot 'docs/workspace-ux.md') -Destination (Join-Path $stage 'docs')
 $pluginLicenses = Join-Path $stage 'licenses/craft-ai-chat'
 [IO.Directory]::CreateDirectory($pluginLicenses) | Out-Null
 foreach ($document in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'README.md')) {

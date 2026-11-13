@@ -410,7 +410,7 @@ impl SoundApp {
                 self.engine.transport.position = p.position();
             }
             let now = self.uptime;
-            let meter_interval = if self.ui.window == MainWindow::Mix { 1.0 / 60.0 } else { 1.0 / 20.0 };
+            let meter_interval = if self.ui.window == MainWindow::Mix || self.ui.show_mix { 1.0 / 60.0 } else { 1.0 / 20.0 };
             if now - self.last_meter_poll >= meter_interval {
                 p.take_meters(&mut self.meter_snapshot);
                 self.last_meter_poll = now;

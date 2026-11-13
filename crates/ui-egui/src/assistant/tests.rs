@@ -3,7 +3,7 @@ use crate::Services;
 use std::time::{Duration, Instant};
 
 fn app() -> SoundApp {
-    SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default())
+    SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default())
 }
 
 #[test]

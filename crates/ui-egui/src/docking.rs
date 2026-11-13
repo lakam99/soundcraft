@@ -19,10 +19,14 @@ pub enum Panel {
     Memory,
     History,
     AiChat,
+    Mix,
+    Inspector,
+    Browser,
 }
 
 impl Panel {
-    pub const ALL: &[Self] = &[Self::Canvas, Self::Tracks, Self::Clips, Self::Midi, Self::Memory, Self::History, Self::AiChat];
+    pub const ALL: &[Self] =
+        &[Self::Canvas, Self::Tracks, Self::Clips, Self::Midi, Self::Memory, Self::History, Self::AiChat, Self::Mix, Self::Inspector, Self::Browser];
     fn label(self) -> &'static str {
         match self {
             Self::Canvas => "Session",
@@ -32,6 +36,9 @@ impl Panel {
             Self::Memory => "Memory Locations",
             Self::History => "Undo History",
             Self::AiChat => "AI Chat",
+            Self::Mix => "Mix",
+            Self::Inspector => "Inspector",
+            Self::Browser => "Browser",
         }
     }
 }
@@ -42,6 +49,8 @@ pub const TRACKS_WIDTH: f32 = 168.0;
 pub const CLIPS_WIDTH: f32 = 230.0;
 /// Height of the MIDI editor's body under the session view.
 pub const MIDI_HEIGHT: f32 = 320.0;
+/// The mixer opens below the timeline with room for routing, pan, faders and meters.
+pub const MIX_HEIGHT: f32 = 360.0;
 
 /// An Edit or Mix panel arrangement, saved with the UI preferences.
 pub type Workspace = craft_ui::docking::Workspace<Panel>;
@@ -99,13 +108,15 @@ fn default_dock(panel: Panel) -> Option<(Side, f32)> {
         Panel::Tracks => Some((Side::Start, TRACKS_WIDTH)),
         Panel::Clips => Some((Side::End, CLIPS_WIDTH)),
         Panel::AiChat => Some((Side::End, 380.0)),
+        Panel::Inspector => Some((Side::Start, 220.0)),
+        Panel::Browser => Some((Side::End, 260.0)),
         _ => None,
     }
 }
 
 /// The Edit window's built-in arrangement: Tracks and Groups in a full-height start dock,
 /// Clips in a full-height end dock, and the MIDI editor under the session view between them.
-pub fn edit_default() -> Workspace {
+pub fn classic_default() -> Workspace {
     let session = split(SplitAxis::Vertical, SplitSize::FixedSecond(MIDI_HEIGHT + MIDI_TAB_HEIGHT), tabs(Panel::Canvas), tabs(Panel::Midi));
     Workspace::new(Layout {
         root: Some(split(
@@ -116,6 +127,35 @@ pub fn edit_default() -> Workspace {
         )),
         floating: default_floating(),
     })
+}
+
+/// The modern arrangement keeps context on the left, content on the right and lower editors together.
+pub fn edit_default() -> Workspace {
+    let session = split(
+        SplitAxis::Vertical,
+        SplitSize::FixedSecond(MIX_HEIGHT + MIDI_TAB_HEIGHT),
+        tabs(Panel::Canvas),
+        Node::Tabs { panels: vec![Panel::Mix, Panel::Midi], active: 0 },
+    );
+    Workspace::new(Layout {
+        root: Some(split(
+            SplitAxis::Horizontal,
+            SplitSize::FixedFirst(220.0),
+            dock(Side::Start, Panel::Inspector, 220.0),
+            split(SplitAxis::Horizontal, SplitSize::FixedSecond(260.0), session, dock(Side::End, Panel::Browser, 260.0)),
+        )),
+        floating: default_floating(),
+    })
+}
+
+fn default_for(app: &crate::SoundApp, edit: bool) -> Workspace {
+    if !edit {
+        mix_default()
+    } else if app.ui.modern_workspace {
+        edit_default()
+    } else {
+        classic_default()
+    }
 }
 
 /// The Mix window's built-in arrangement: Tracks and Groups in a start dock beside the mixer.
@@ -141,6 +181,11 @@ pub const LAYOUT_VERSION: u32 = 1;
 /// setting stays. Preferences and window configurations go through this.
 pub fn reset_old_layouts(saved: &mut Value) {
     let Some(fields) = saved.as_object_mut() else { return };
+    // A saved full-window Mix selection must not replace the timeline after this upgrade.
+    if fields.get("window").and_then(Value::as_str) == Some("Mix") && fields.get("mix_separate").and_then(Value::as_bool) != Some(true) {
+        fields.insert("window".into(), json!("Edit"));
+        fields.entry("show_mix").or_insert(json!(true));
+    }
     if fields.get("docking_version").and_then(Value::as_u64).is_some_and(|version| version >= u64::from(LAYOUT_VERSION)) {
         return;
     }
@@ -197,8 +242,8 @@ pub fn validate(workspace: &Workspace) -> Result<(), String> {
 /// [`validate`] plus the Mix window's rule: Clips and MIDI stay in Edit.
 pub fn validate_mix(workspace: &Workspace) -> Result<(), String> {
     validate(workspace)?;
-    if workspace.layout.contains(&Panel::Clips) || workspace.layout.contains(&Panel::Midi) {
-        return Err("Clips and MIDI panels belong to the Edit window".into());
+    if [Panel::Clips, Panel::Midi, Panel::Mix].iter().any(|panel| workspace.layout.contains(panel)) {
+        return Err("Clips, MIDI and the docked Mix panel belong to the Edit window".into());
     }
     Ok(())
 }
@@ -290,6 +335,23 @@ fn set_visible(workspace: &mut Workspace, panel: Panel, visible: bool) -> Result
         {
             return Ok(());
         }
+        if panel == Panel::Mix {
+            // Classic predates a mixer panel. Reuse its lower MIDI group on first open so
+            // opening MIDI later cannot create a second lower pane and shift saved geometry.
+            let had_midi = next.layout.contains(&Panel::Midi);
+            let mut shared = next.clone();
+            if shared.set_visible(Panel::Midi, true, None, permissions).is_ok()
+                && !shared.layout.floating.iter().any(|window| window.contains(&Panel::Midi))
+                && shared.set_visible(Panel::Mix, true, Some(Panel::Midi), permissions).is_ok()
+            {
+                if !had_midi {
+                    shared.apply(Action::Close { panel: Panel::Midi }, permissions)?;
+                }
+                shared.apply(Action::Activate { panel: Panel::Mix }, permissions)?;
+                *next = shared;
+                return Ok(());
+            }
+        }
         let open = Action::Open { panel, anchor: None };
         let actions = match (dock, default_float(panel)) {
             (Some((side, width)), _) => vec![open, Action::MovePanel { panel, to: Target::NewDock { side } }, Action::ResizeColumn { panel, width }],
@@ -322,6 +384,9 @@ fn sync(workspace: &mut Workspace, app: &crate::SoundApp, edit: bool) -> Result<
     if edit {
         set_visible(workspace, Panel::Clips, app.ui.show_clip_list)?;
         set_visible(workspace, Panel::Midi, app.ui.show_midi_editor)?;
+        set_visible(workspace, Panel::Mix, app.ui.show_mix && !app.ui.mix_separate)?;
+        set_visible(workspace, Panel::Inspector, app.ui.show_inspector)?;
+        set_visible(workspace, Panel::Browser, app.ui.show_browser)?;
     }
     Ok(())
 }
@@ -334,6 +399,11 @@ fn publish_visibility(app: &mut crate::SoundApp, workspace: &Workspace, edit: bo
     if edit {
         app.ui.show_clip_list = workspace.layout.contains(&Panel::Clips);
         app.ui.show_midi_editor = workspace.layout.contains(&Panel::Midi);
+        app.ui.show_inspector = workspace.layout.contains(&Panel::Inspector);
+        app.ui.show_browser = workspace.layout.contains(&Panel::Browser);
+        if !app.ui.mix_separate {
+            app.ui.show_mix = workspace.layout.contains(&Panel::Mix);
+        }
     }
 }
 
@@ -370,8 +440,8 @@ fn operation(fields: &serde_json::Map<String, Value>) -> Result<DockOperation<Pa
 /// front window's workspace.
 pub fn command(app: &mut crate::SoundApp, id: &str, params: &Value) -> Result<Value, String> {
     let edit = app.ui.window == crate::MainWindow::Edit;
-    if !edit && ["panel", "target"].iter().any(|field| matches!(params.get(*field).and_then(Value::as_str), Some("clips" | "midi"))) {
-        return Err("Clips and MIDI panels belong to the Edit window".into());
+    if !edit && ["panel", "target"].iter().any(|field| matches!(params.get(*field).and_then(Value::as_str), Some("clips" | "midi" | "mix"))) {
+        return Err("Clips, MIDI and the docked Mix panel belong to the Edit window".into());
     }
     let mut fields = match params {
         Value::Object(fields) => fields.clone(),
@@ -412,7 +482,7 @@ fn command_for(app: &mut crate::SoundApp, command: &DockCommand<Panel>, edit: bo
         if !matches!(command, DockCommand::ResetWorkspace {}) {
             return Err("Named panel workspaces are not supported".into());
         }
-        workspace = if edit { edit_default() } else { mix_default() };
+        workspace = default_for(app, edit);
         sync(&mut workspace, app, edit)?;
     } else {
         if !edit {
@@ -457,12 +527,12 @@ pub fn show(app: &mut crate::SoundApp, ui: &mut egui::Ui, window: crate::MainWin
     app.docking_context = Some(ui.ctx().clone());
     let t = crate::theme::Tokens::current();
     let edit = window == crate::MainWindow::Edit;
-    let mut workspace =
-        if edit { std::mem::replace(&mut app.ui.docking, edit_default()) } else { std::mem::replace(&mut app.ui.mix_docking, mix_default()) };
+    let default = default_for(app, edit);
+    let mut workspace = if edit { std::mem::replace(&mut app.ui.docking, default) } else { std::mem::replace(&mut app.ui.mix_docking, default) };
     let before_sync = workspace.clone();
     if let Err(error) = (if edit { validate(&workspace) } else { validate_mix(&workspace) }).and_then(|()| sync(&mut workspace, app, edit)) {
         app.ui.status = format!("Panel layout could not be restored: {error}");
-        workspace = if edit { edit_default() } else { mix_default() };
+        workspace = default_for(app, edit);
         let _ = sync(&mut workspace, app, edit);
     }
     cancel_replaced_workspace(app, &before_sync, &workspace, edit);
@@ -508,6 +578,9 @@ pub fn show(app: &mut crate::SoundApp, ui: &mut egui::Ui, window: crate::MainWin
                     ui.painter().rect_filled(ui.max_rect(), 0.0, t.window_bg);
                     if edit {
                         crate::edit_window::main_area(app, ui);
+                        if app.ui.modern_workspace && app.engine.session().tracks.is_empty() {
+                            crate::workspace::empty(app, ui);
+                        }
                     } else {
                         crate::mix_window::content(app, ui);
                     }
@@ -521,6 +594,9 @@ pub fn show(app: &mut crate::SoundApp, ui: &mut egui::Ui, window: crate::MainWin
                 Panel::Memory => crate::panels::memory_locations(app, ui),
                 Panel::History => crate::panels::undo_history(app, ui),
                 Panel::AiChat => crate::assistant::show(app, ui),
+                Panel::Mix => minimum_body(ui, egui::vec2(300.0, 340.0), |ui| crate::mix_window::content(app, ui)),
+                Panel::Inspector => crate::workspace::inspector(app, ui),
+                Panel::Browser => crate::workspace::browser(app, ui),
             }
         },
     );
@@ -559,6 +635,9 @@ fn panel_limits(panel: &Panel) -> PanelLimits {
         Panel::Memory => (egui::vec2(260.0, 160.0), 1_000_000.0),
         Panel::History => (egui::vec2(200.0, 160.0), 720.0),
         Panel::AiChat => (egui::vec2(300.0, 240.0), 1_000_000.0),
+        Panel::Mix => (egui::vec2(300.0, 240.0), 1_000_000.0),
+        Panel::Inspector => (egui::vec2(190.0, 180.0), 420.0),
+        Panel::Browser => (egui::vec2(200.0, 180.0), 560.0),
     };
     PanelLimits { min, max: egui::vec2(max_width, 1_000_000.0) }
 }

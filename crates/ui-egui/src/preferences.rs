@@ -1054,7 +1054,7 @@ mod tests {
 
     /// Creates a complete application harness with Preferences already open.
     fn preferences_harness(size: egui::Vec2) -> Harness<'static, SoundApp> {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         app.ui.show_preferences = true;
         Harness::builder().with_size(size).build_ui_state(
             |ui, app: &mut SoundApp| {
@@ -1078,7 +1078,7 @@ mod tests {
     /// Implemented preferences use commands without becoming document edits.
     #[test]
     fn applying_live_preferences_uses_ui_commands_without_dirtying_the_session() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         assert_eq!(app.ui.theme, ThemeMode::Dark);
         assert!(app.run("ui.theme", json!({"mode": ThemeMode::Light.id()})).is_ok());
         assert!(app.run("ui.reduce_visual_effects", json!({"mode": "playback"})).is_ok());
@@ -1114,7 +1114,7 @@ mod tests {
     /// Fields edited in the window win over later live changes while untouched fields follow them.
     #[test]
     fn draft_sync_preserves_only_user_edited_fields() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         let mut draft = PreferencesDraft::from_live(&app);
         let before = draft;
         draft.theme = ThemeMode::Light;
@@ -1133,7 +1133,7 @@ mod tests {
     /// Command inputs reject unknown modes and bound undo depth safely.
     #[test]
     fn live_preferences_reject_or_clamp_hostile_values() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         assert!(app.run("ui.reduce_visual_effects", json!({"mode": "sometimes"})).is_err());
         assert_eq!(app.run("ui.undo_levels", json!({"levels": 10_000})).unwrap()["levels"], 64);
     }
@@ -1143,7 +1143,7 @@ mod tests {
     fn setup_menu_opens_preferences_through_the_catalog_command() {
         let aliases = crate::menus::ui_aliases();
         assert_eq!(crate::menus::command_for_path("Setup > Preferences...", &aliases).as_deref(), Some("setup.preferences"));
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         assert_eq!(app.run("setup.preferences", json!({"value": true})), Ok(json!({"value": true})));
         assert!(app.ui.show_preferences);
     }
@@ -1151,7 +1151,7 @@ mod tests {
     /// Closing by command cannot leak staged values into a later window instance.
     #[test]
     fn command_closes_discard_staged_preferences_before_a_reopen() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         app.ui.show_preferences = true;
         app.preferences.search = "theme".into();
         let mut draft = PreferencesDraft::from_live(&app);
@@ -1176,7 +1176,7 @@ mod tests {
     /// command can reopen it, even when no UI frame runs between the two commands.
     #[test]
     fn ui_set_close_then_immediate_reopen_starts_without_the_canceled_draft() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         app.ui.show_preferences = true;
         app.preferences.search = "undo".into();
         let mut draft = PreferencesDraft::from_live(&app);
@@ -1199,7 +1199,7 @@ mod tests {
     fn configuration_recall_preserves_live_preferences_and_draft() {
         for open in [false, true] {
             for legacy in [false, true] {
-                let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+                let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
                 app.ui.show_preferences = !open;
                 app.ui.preferences_page = PreferencesPage::Midi;
                 app.ui.preferences_window_pos = Some([600.0, 100.0]);
@@ -1268,9 +1268,9 @@ mod tests {
     /// Recalling a layout clamps hostile current history settings before synchronizing the engine.
     #[test]
     fn configuration_recall_bounds_the_current_history_limit() {
-        let saved = serde_json::to_value(crate::UiState::default()).unwrap();
+        let saved = serde_json::to_value(crate::UiState::classic()).unwrap();
         for (requested, expected) in [(0, 1), (usize::MAX, 64)] {
-            let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+            let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
             app.ui.undo_levels = requested;
             crate::windows::recall_configuration(&mut app, &saved).unwrap();
             assert_eq!((app.ui.undo_levels, app.engine.history_limit), (expected, expected));
@@ -1343,7 +1343,7 @@ mod tests {
     /// The application menu invokes the same Preferences command as Setup.
     #[test]
     fn soundcraft_menu_opens_preferences_through_the_same_command() {
-        let app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         let mut harness = Harness::builder().with_size(egui::vec2(1600.0, 1000.0)).build_ui_state(
             |ui, app: &mut SoundApp| {
                 app.logic(&ui.ctx().clone());
@@ -1362,7 +1362,7 @@ mod tests {
     /// The in-window application menu visibly disables Preferences during playback.
     #[test]
     fn soundcraft_menu_disables_preferences_during_playback() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         app.engine.transport.playing = true;
         let mut harness = Harness::builder().with_size(egui::vec2(1600.0, 1000.0)).build_ui_state(
             |ui, app: &mut SoundApp| {

@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn import_runs_in_the_background_and_places_one_undoable_clip() {
         let ctx = egui::Context::default();
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let wav = tone_wav("bg.wav");
         start(&mut app, json!({"path": wav, "at": 480}));
         assert!(app.imports.busy());
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn imports_queue_and_a_bad_file_reports_without_stopping_the_rest() {
         let ctx = egui::Context::default();
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let junk = tone_wav("junk.wav");
         std::fs::write(&junk, b"not audio").unwrap();
         let good = tone_wav("good.wav");
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn a_failed_import_stays_on_the_status_line_while_the_next_one_starts() {
         let ctx = egui::Context::default();
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let junk = tone_wav("junk-status.wav");
         std::fs::write(&junk, b"not audio").unwrap();
         start(&mut app, json!({"path": junk}));

@@ -693,7 +693,7 @@ mod tests {
 
     /// Builds a compact Grid/Nudge toolbar test harness.
     fn harness() -> Harness<'static, SoundApp> {
-        let app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let mut harness = Harness::builder().with_size(vec2(700.0, 700.0)).build_ui_state(
             |ui, app: &mut SoundApp| {
                 let edit = &app.engine.session().edit;

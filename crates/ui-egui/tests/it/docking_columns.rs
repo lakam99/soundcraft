@@ -36,8 +36,8 @@ fn dock_columns(h: &egui_kittest::Harness<'_, SoundApp>, side: Side) -> Vec<Colu
 }
 
 #[test]
-fn default_layouts_put_the_side_lists_in_full_height_dock_columns() {
-    let edit = docking::edit_default();
+fn classic_layouts_put_the_side_lists_in_full_height_dock_columns() {
+    let edit = docking::classic_default();
     let session = split(SplitAxis::Vertical, SplitSize::FixedSecond(MIDI_HEIGHT + 26.0), tabs(Panel::Canvas), tabs(Panel::Midi));
     let expected = split(
         SplitAxis::Horizontal,
@@ -63,7 +63,7 @@ fn default_layouts_put_the_side_lists_in_full_height_dock_columns() {
     // Drawn: the docks run the window's height at its sides, and the MIDI editor sits under the
     // session view between them.
     let width = 1400.0;
-    let mut h = harness(Some(UiState { show_midi_editor: true, ..Default::default() }), width, 1.0);
+    let mut h = harness(Some(UiState { show_midi_editor: true, ..UiState::classic() }), width, 1.0);
     h.run_steps(3);
     let tracks = h.get_by_role_and_label(Role::Tab, "Tracks and Groups").rect();
     let clips = h.get_by_role_and_label(Role::Tab, "Clips").rect();
@@ -121,7 +121,7 @@ fn a_panel_without_a_recorded_place_reopens_at_its_default_place() {
     // Both docks gone: each list makes its dock again, at its default width. The MIDI editor
     // opens under the session view, and Memory Locations and Undo History float where they
     // start.
-    let mut state = UiState::default();
+    let mut state = UiState::classic();
     for panel in [Panel::Tracks, Panel::Clips, Panel::Midi, Panel::Memory, Panel::History] {
         close(&mut state, panel);
     }
@@ -146,7 +146,7 @@ fn a_panel_without_a_recorded_place_reopens_at_its_default_place() {
     docking::validate(&h.state().ui.docking).unwrap();
 
     // A dock that is still shown takes the list into its first group.
-    let mut state = UiState::default();
+    let mut state = UiState::classic();
     state
         .docking
         .apply(
@@ -175,7 +175,7 @@ fn a_panel_without_a_recorded_place_reopens_at_its_default_place() {
 fn a_recorded_place_whose_anchor_is_gone_reopens_at_its_default_place() {
     use craft_ui::docking::{Action, Permissions, Placement, Zone};
     let allow = |_: &Panel| Permissions::default();
-    let mut state = UiState::default();
+    let mut state = UiState::classic();
     // Stale saved locations: their recorded anchor closed without leaving a place to follow.
     for panel in [Panel::Clips, Panel::Midi, Panel::Tracks] {
         state.docking.apply(Action::Close { panel }, allow).unwrap();
@@ -228,7 +228,7 @@ fn split_frame_settings() -> serde_json::Value {
         "second": {"Tabs": {"panels": ["canvas"], "active": 0}}
     }}, "floating": []}});
     let mut settings =
-        serde_json::to_value(UiState { theme: soundcraft_ui_egui::theme::ThemeMode::Light, narrow_mix: true, ..Default::default() }).unwrap();
+        serde_json::to_value(UiState { theme: soundcraft_ui_egui::theme::ThemeMode::Light, narrow_mix: true, ..UiState::classic() }).unwrap();
     let fields = settings.as_object_mut().unwrap();
     fields.remove("docking_version");
     fields.insert("docking".into(), edit);
@@ -250,7 +250,7 @@ fn split_frame_settings_load_as_the_dock_defaults_and_dock_layouts_round_trip() 
     assert!(state.narrow_mix);
 
     // A configuration saved before dock columns resets the same way when recalled.
-    let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
     app.run("ui.dock", json!({"operation":"float","panel":"tracks","rect":[80,90,260,400]})).unwrap();
     app.ui.configurations = vec![("Old".into(), split_frame_settings())];
     soundcraft_ui_egui::windows::recall_configuration(&mut app, &split_frame_settings()).unwrap();
@@ -259,7 +259,7 @@ fn split_frame_settings_load_as_the_dock_defaults_and_dock_layouts_round_trip() 
     assert!(app.ui.narrow_mix && app.ui.configurations.len() == 1);
 
     // A dock layout comes back as it was saved, and drawing it does not rearrange it.
-    let mut h = harness(Some(UiState { show_undo_history: true, ..Default::default() }), 1400.0, 1.0);
+    let mut h = harness(Some(UiState { show_undo_history: true, ..UiState::classic() }), 1400.0, 1.0);
     h.state_mut().run("ui.dock", json!({"operation":"move","panel":"clips","target":"tracks","zone":"bottom"})).unwrap();
     h.state_mut().run("ui.dock", json!({"operation":"float","panel":"history","rect":[500,200,260,300]})).unwrap();
     h.run_steps(4);

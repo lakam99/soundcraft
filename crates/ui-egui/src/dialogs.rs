@@ -895,7 +895,7 @@ mod tests {
         let ctx = egui::Context::default();
         ctx.set_os(os);
         crate::fonts::install(&ctx, true);
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         assert!(app.dialogs.open_for_command(&app.engine, "track.new"));
         for _ in 0..3 {
             dialog_frame(&ctx, &mut app, vec![]);
@@ -1053,7 +1053,7 @@ mod tests {
     fn simultaneous_enter_and_escape_does_not_start_a_bounce() {
         let ctx = egui::Context::default();
         crate::fonts::install(&ctx, true);
-        let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
         assert!(app.dialogs.open_for_command(&app.engine, "file.bounce_mix"));
         for _ in 0..3 {
             dialog_frame(&ctx, &mut app, vec![]);
@@ -1068,7 +1068,7 @@ mod tests {
     fn simultaneous_save_and_escape_does_not_continue_after_saving() {
         let ctx = egui::Context::default();
         crate::fonts::install(&ctx, true);
-        let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
         let tracks = app.engine.session().tracks.len();
         app.dialogs.open = Some(Dialog::SaveChanges { then: ("session.close".into(), json!({})) });
         for _ in 0..3 {
@@ -1130,7 +1130,7 @@ mod tests {
         assert_eq!(unicode(std::path::Path::new("/a/café.wav")), Ok("/a/café.wav"));
         let latin1 = std::path::Path::new(std::ffi::OsStr::from_bytes(b"/a/caf\xe9.scraft"));
         assert_eq!(unicode(latin1), Err(NotUnicode(latin1.to_path_buf())));
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         open_path(&mut app, latin1);
         assert_eq!(app.ui.status, r#""/a/caf\xE9.scraft" is not valid Unicode"#);
         assert!(app.engine.path.is_none() && app.dialogs.open.is_none());
@@ -1173,7 +1173,7 @@ mod tests {
 
     #[test]
     fn speed_ramp_menu_opens_the_window_and_its_choices_reach_the_engine() {
-        let mut app = SoundApp::new(Engine::default(), None, crate::Services::default());
+        let mut app = SoundApp::new_classic(Engine::default(), None, crate::Services::default());
         crate::menus::invoke_menu(&mut app, "audiosuite.process", "AudioSuite > Pitch Shift > Vari-Fi");
         assert_eq!(app.ui.audiosuite.as_deref(), Some("speed_ramp"));
         // Renders the Kick clip with `params` and returns its new length and samples.

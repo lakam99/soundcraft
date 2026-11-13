@@ -86,6 +86,19 @@ pub fn handle(app: &mut SoundApp, ctx: &egui::Context) {
     // Cmd and Ctrl are separate keys only on macOS (asked at runtime so the web build in a Mac browser agrees).
     let mac = ctx.os() == egui::os::OperatingSystem::Mac;
     for (key, mods, repeat) in events {
+        if !repeat && app.ui.modern_workspace && mods == Modifiers::NONE {
+            let command = match key {
+                Key::F2 => Some("window.midi_editor"),
+                Key::F3 => Some("window.toggle_mix_edit"),
+                Key::F4 => Some("workspace.inspector"),
+                Key::F5 => Some("workspace.browser"),
+                _ => None,
+            };
+            if let Some(command) = command {
+                let _ = app.run(command, json!({}));
+                continue;
+            }
+        }
         if repeat {
             if let Some((id, params)) = repeating_command(key, mods, mac) {
                 let _ = app.run(id, params);
@@ -547,7 +560,7 @@ mod tests {
     }
 
     fn app_with_selection() -> crate::SoundApp {
-        let mut app = crate::SoundApp::new(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
+        let mut app = crate::SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, crate::Services::default());
         app.ui.window = crate::MainWindow::Edit;
         app.edit_layout.timeline = [0.0, 0.0, 100.0, 100.0];
         app.run("view.zoom_set", serde_json::json!({"samples_per_px": 10.0})).unwrap();

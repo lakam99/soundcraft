@@ -787,7 +787,7 @@ mod selector_visual_regressions {
     }
 
     fn mixer_app(narrow: bool, mode: soundcraft_model::AutomationMode) -> crate::SoundApp {
-        let mut app = crate::SoundApp::new(soundcraft_engine::Engine::default(), None, Default::default());
+        let mut app = crate::SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Default::default());
         app.run("track.new", serde_json::json!({"name": "Voice"})).unwrap();
         app.run("track.new", serde_json::json!({"name": "Music"})).unwrap();
         let ids: Vec<_> = app.engine.session().tracks.iter().map(|track| track.id).collect();

@@ -493,7 +493,7 @@ mod tests {
         // exclusive against other threads (so a frame cannot flip it mid-test).
         let outer = lock_test_palette();
         let inner = lock_test_palette();
-        let app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let _held = lock_test_palette();
@@ -510,7 +510,7 @@ mod tests {
     #[test]
     fn dark_is_the_default() {
         assert_eq!(ThemeMode::default(), ThemeMode::Dark);
-        assert_eq!(UiState::default().theme, ThemeMode::Dark);
+        assert_eq!(UiState::classic().theme, ThemeMode::Dark);
         // Prefs saved before the setting existed load as Dark.
         let old: UiState = serde_json::from_value(json!({"show_tracks_list": true})).unwrap_or_default();
         assert_eq!(old.theme, ThemeMode::Dark);
@@ -526,7 +526,7 @@ mod tests {
     fn modes_round_trip_through_prefs() {
         for mode in ThemeMode::ALL {
             assert_eq!(ThemeMode::parse(mode.id()), Some(mode));
-            let ui = UiState { theme: mode, ..UiState::default() };
+            let ui = UiState { theme: mode, ..UiState::classic() };
             let back: UiState = serde_json::from_value(serde_json::to_value(&ui).unwrap_or_default()).unwrap_or_default();
             assert_eq!(back.theme, mode);
         }
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn theme_command_sets_and_reports_the_mode() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         assert_eq!(app.run("ui.theme", json!({})), Ok(json!({"mode": "dark"})));
         assert_eq!(app.run("ui.theme", json!({"mode": "light"})), Ok(json!({"mode": "light"})));
         assert_eq!(app.ui.theme, ThemeMode::Light);
@@ -591,7 +591,7 @@ mod tests {
         let appearances = [Some(egui::Theme::Light), Some(egui::Theme::Dark), Some(egui::Theme::Light), None];
         for initial in [Some(egui::Theme::Light), Some(egui::Theme::Dark), None] {
             let ctx = egui::Context::default();
-            let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+            let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
             app.ui = serde_json::from_value(json!({"theme": "system"})).unwrap();
             frame(&mut app, &ctx, initial, initial == Some(egui::Theme::Light));
         }
@@ -601,7 +601,7 @@ mod tests {
         let track = engine.session_mut().tracks.first_mut().unwrap();
         track.color = [19, 83, 147];
         track.playlists.iter_mut().flat_map(|playlist| &mut playlist.clips).next().unwrap().color = Some([211, 57, 99]);
-        let mut app = SoundApp::new(engine, None, Services::default());
+        let mut app = SoundApp::new_classic(engine, None, Services::default());
         for mode in [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark] {
             app.run("ui.theme", json!({"mode": mode.id()})).unwrap();
             for appearance in appearances {

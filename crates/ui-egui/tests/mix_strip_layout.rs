@@ -12,13 +12,14 @@ const SCALE: [&str; 10] = ["12", "6", "0", "5", "10", "15", "20", "30", "40", "6
 static PALETTE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn mix(mode: ThemeMode) -> Harness<'static, SoundApp> {
-    let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
     app.engine.session_mut().edit.selected_tracks.clear();
     // Fader caps at the bottom, clear of the scale.
     for track in &mut app.engine.session_mut().tracks {
         track.mixer.volume_db = -144.0;
     }
-    app.run("window.mix", json!({})).unwrap();
+    // Scale geometry of the full-height mixer used by the separate window.
+    app.ui.window = soundcraft_ui_egui::MainWindow::Mix;
     app.run("ui.theme", json!({"mode": mode.id()})).unwrap();
     let mut harness = Harness::builder().with_size(vec2(1600.0, 1000.0)).build_ui_state(
         |ui, app: &mut SoundApp| {

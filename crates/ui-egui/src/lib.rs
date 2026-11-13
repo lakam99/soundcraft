@@ -37,6 +37,7 @@ pub mod updates_ui;
 pub mod video_track;
 pub mod waveform;
 pub mod widgets;
+pub mod workspace;
 
 use serde_json::{Value, json};
 use soundcraft_engine::{Engine, TransportRequest};
@@ -77,6 +78,12 @@ pub use state::{DragSource, MainWindow};
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct UiState {
+    /// Modern and Classic retain independent panel arrangements.
+    pub modern_workspace: bool,
+    pub show_inspector: bool,
+    pub show_browser: bool,
+    pub classic_layout: Option<workspace::LayoutSnapshot>,
+    pub modern_layout: Option<workspace::LayoutSnapshot>,
     /// File › Open Recent, newest first (see `recent`).
     pub recent_sessions: Vec<String>,
     pub docking: docking::Workspace,
@@ -96,6 +103,8 @@ pub struct UiState {
     pub show_audio_health: bool,
     pub show_about: bool,
     pub show_midi_editor: bool,
+    /// The docked mixer below the timeline; its placement is saved in `docking`.
+    pub show_mix: bool,
     pub show_universe: bool,
     pub narrow_mix: bool,
     /// Mix window sections: inserts_ae, inserts_fj, sends_ae, sends_fj, io, comments, eq_curve, color.
@@ -164,13 +173,18 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         UiState {
+            modern_workspace: true,
+            show_inspector: true,
+            show_browser: true,
+            classic_layout: None,
+            modern_layout: None,
             recent_sessions: Vec::new(),
             docking: docking::edit_default(),
             mix_docking: docking::mix_default(),
             docking_version: docking::LAYOUT_VERSION,
             window: MainWindow::Edit,
-            show_tracks_list: true,
-            show_clip_list: true,
+            show_tracks_list: false,
+            show_clip_list: false,
             show_transport: false,
             show_memory_locations: false,
             show_big_counter: false,
@@ -179,6 +193,7 @@ impl Default for UiState {
             show_audio_health: false,
             show_about: false,
             show_midi_editor: false,
+            show_mix: false,
             show_universe: false,
             narrow_mix: false,
             mix_views: vec!["inserts_ae".into(), "sends_ae".into(), "io".into(), "color".into()],
@@ -277,6 +292,7 @@ pub enum Gesture {
 }
 
 pub struct SoundApp {
+    pub workspace: workspace::Runtime,
     assistant: assistant::Runtime,
     pub ai_preferences_path: Option<std::path::PathBuf>,
     pub engine: Engine,

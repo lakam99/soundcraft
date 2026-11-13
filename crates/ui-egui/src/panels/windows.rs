@@ -413,6 +413,7 @@ fn configurations(app: &mut SoundApp, ctx: &egui::Context) {
 pub fn recall_configuration(app: &mut SoundApp, saved: &Value) -> Result<(), String> {
     let mut saved = saved.clone();
     crate::docking::reset_old_layouts(&mut saved);
+    crate::workspace::migrate_legacy(&mut saved)?;
     let mut st = serde_json::from_value::<crate::UiState>(saved).map_err(|error| error.to_string())?;
     crate::docking::validate(&st.docking).and_then(|()| crate::docking::validate_mix(&st.mix_docking))?;
     st.configurations = app.ui.configurations.clone();

@@ -51,10 +51,11 @@ pub fn show_separate(app: &mut SoundApp, ctx: &egui::Context) {
     });
 }
 
-/// The separate Mix window was closed: Mix goes back into the main window.
+/// The separate Mix window was closed: restore its docked panel under the timeline.
 pub fn separate_closed(app: &mut SoundApp) {
     app.ui.mix_separate = false;
-    app.ui.window = crate::MainWindow::Mix;
+    app.ui.window = crate::MainWindow::Edit;
+    app.ui.show_mix = true;
 }
 
 /// Draw the horizontal Mix window strips for visible non-video tracks, scroll one requested strip into view and open
@@ -156,6 +157,7 @@ fn section_label(ui: &Ui, r: Rect, text: &str, narrow: bool) {
 const STRIP_FOOT_H: f32 = 64.0;
 
 /// One mixer strip's geometry and settings, shared by its sections.
+#[derive(Clone)]
 struct StripCtx<'a> {
     track: &'a Track,
     id: TrackId,
@@ -182,7 +184,7 @@ fn strip(app: &mut SoundApp, ui: &mut Ui, id: TrackId, snap: Option<&MeterSnapsh
     let Some(track) = session.track(id) else { return };
     let narrow = app.ui.narrow_mix;
     let w = strip_width(narrow);
-    let h = ui.available_height().max(560.0);
+    let h = ui.available_height().max(340.0);
     let (r, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     if scroll_here {
         // egui stops `item_spacing` short of the edge (the scroll area's, not the strips' 1 pt),
@@ -202,14 +204,39 @@ fn strip(app: &mut SoundApp, ui: &mut Ui, id: TrackId, snap: Option<&MeterSnapsh
     let cx = StripCtx { track, id, r, w, x0, inner_w, narrow, selected, views, all };
     // Preamp, instrument and object rows keep their height on every strip so sections line up;
     // their controls only appear on tracks with an input.
-    y = preamp_section(app, ui, &cx, y);
-    y = instrument_section(app, ui, &cx, y);
-    y = object_section(app, ui, &cx, y);
-    y = slot_sections(app, ui, &cx, y);
-    y = eq_section(ui, &cx, y);
-    y = comments_section(app, ui, &cx, y);
+    if h < 560.0 {
+        // Keep the fader on screen in a bottom panel. Optional channel sections remain in a popup
+        // rather than extending the strip below its name plate.
+        let mut row =
+            ui.new_child(egui::UiBuilder::new().id_salt(("mix-details", id.0)).max_rect(Rect::from_min_size(pos2(x0, y), vec2(inner_w, 20.0))));
+        let response = row.add_sized([inner_w, 18.0], egui::Button::new("Details")).on_hover_text("Inserts, sends, instruments and channel settings");
+        crate::assistant::register(app, &format!("mix.track.{}.details", id.0), &response, &format!("Channel details for {}", track.name));
+        egui::Popup::menu(&response).show(|ui| {
+            ui.set_min_width(180.0);
+            let origin = ui.cursor().min;
+            let details = StripCtx { x0: origin.x + 4.0, inner_w: 172.0, w: 180.0, narrow: false, ..cx.clone() };
+            let mut end = preamp_section(app, ui, &details, origin.y);
+            end = instrument_section(app, ui, &details, end);
+            end = object_section(app, ui, &details, end);
+            end = slot_sections(app, ui, &details, end);
+            end = eq_section(ui, &details, end);
+            end = comments_section(app, ui, &details, end);
+            end = group_selector(app, ui, &details, end);
+            ui.allocate_space(vec2(180.0, (end - origin.y).max(20.0)));
+        });
+        y += 22.0;
+    } else {
+        y = preamp_section(app, ui, &cx, y);
+        y = instrument_section(app, ui, &cx, y);
+        y = object_section(app, ui, &cx, y);
+        y = slot_sections(app, ui, &cx, y);
+        y = eq_section(ui, &cx, y);
+        y = comments_section(app, ui, &cx, y);
+    }
     y = io_section(app, ui, &cx, y);
-    y = group_selector(app, ui, &cx, y);
+    if h >= 560.0 {
+        y = group_selector(app, ui, &cx, y);
+    }
     y = pan_section(app, ui, &cx, y);
     y = toggle_rows(app, ui, &cx, y);
     fader_and_meter(app, ui, &cx, y, snap);
@@ -476,7 +503,7 @@ fn pan_section(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) -
     let surround_out =
         out_fmt.channels() > 2 && !out_fmt.is_ambisonic() && !matches!(track.kind, TrackKind::Master | TrackKind::Vca) && track.channels() <= 2;
     if surround_out {
-        let size = (inner_w - 4.0).min(88.0);
+        let size = (inner_w - 4.0).min(if cx.r.height() < 560.0 { 40.0 } else { 88.0 });
         let sp = track.mixer.surround.unwrap_or_else(|| {
             SurroundPan::from_stereo(if track.mixer.pan.len() == 1 { track.mixer.pan.first().copied().unwrap_or(0.0) } else { 0.0 })
         });
@@ -584,7 +611,7 @@ fn fader_and_meter(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, y: f32, s
     let StripCtx { track, id, narrow, x0, inner_w, r, .. } = *cx;
     let t = Tokens::current();
     // Fader + meter.
-    let fh = (r.max.y - STRIP_FOOT_H - y).max(120.0);
+    let fh = (r.max.y - STRIP_FOOT_H - y).max(if r.height() < 560.0 { 48.0 } else { 120.0 });
     let wide_meter = (if track.kind == TrackKind::Master { app.engine.session().main_format() } else { track.format }).channels() > 2;
     let fr = Rect::from_min_size(pos2(x0, y), vec2(inner_w * if wide_meter { 0.45 } else { 0.6 }, fh));
     crate::assistant::register_area(
@@ -601,7 +628,7 @@ fn fader_and_meter(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, y: f32, s
     let md = app.meters.get(&id).copied().unwrap_or_default();
     let slot = fader_slot(fr);
     let mr = Rect::from_min_max(pos2(fr.max.x + 4.0, slot.min.y - 5.0), pos2(x0 + inner_w - 2.0, slot.max.y + if wide_meter { 17.0 } else { 1.0 }));
-    if !narrow && !wide_meter {
+    if !narrow && !wide_meter && fh >= 120.0 {
         meter_scale(ui.painter(), mr, mr.min.x - 1.0);
     }
     let strip_fmt = if track.kind == TrackKind::Master { app.engine.session().main_format() } else { track.format };

@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn stereo_track_defaults_to_a_stereo_input_pair() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         app.run("track.new", json!({"format": "stereo"})).unwrap();
         let track = &app.engine.session().tracks[0];
 
