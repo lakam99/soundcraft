@@ -204,6 +204,58 @@ fn assistant_builds_and_refines_a_forge_candidate_with_discoverable_tools() {
 }
 
 #[test]
+fn trumpet_request_discovers_bounded_schemas_and_previews_without_changing_midi() {
+    for populated in [false, true] {
+        let mut app = app();
+        app.ui.ai.attach_frames = false;
+        app.run("soundlab.new", json!({})).unwrap();
+        let track = app.engine.session().tracks[0].id;
+        app.run("track.rename", json!({"track":track.0,"name":"My MIDI"})).unwrap();
+        let clip = app.run("midi.new_clip", json!({"track":track.0,"start":0,"end":48000})).unwrap()["clip"].as_u64().unwrap();
+        if populated {
+            app.run("midi.note_add", json!({"clip":clip,"pitch":60,"start_ticks":0,"length_ticks":480})).unwrap();
+        }
+        let before = app.engine.session_arc();
+        let revision = app.engine.revision;
+        let mut patch = soundcraft_dsp::hybrid::Patch::default().design().clone();
+        patch.name = "Trumpet preview".into();
+        *app.assistant.panel.prompt_mut() = "Make my MIDI track sound like a trumpet; keep its name and notes".into();
+        let mut turn = 0;
+        with_panel(&mut app,|panel,host|panel.send_with(host,&egui::Context::default(),move|body|{
+            assert!(!body["tools"].as_array().unwrap().is_empty(),"Discovery must not trigger compaction");
+            assert!(body["input"].to_string().contains("keep its name and notes"));
+            if turn==1 || turn==2 || turn==3 {
+                let output:Value=serde_json::from_str(body["input"].as_array().unwrap().last().unwrap()["output"].as_str().unwrap()).unwrap();
+                if turn==1 {assert!(output["result"]["topics"].is_array());}
+                else {
+                    let commands=output["result"]["commands"].as_array().unwrap();
+                    let id=if turn==2 {"soundlab.preview"}else{"synth.catalog"};
+                    assert!(commands.iter().any(|c|c["id"]==id && c["params"].is_string()));
+                }
+            }
+            let call=match turn {
+                0=>Some(("engine.commands",json!({}))),
+                1=>Some(("engine.commands",json!({"filter":"soundlab","limit":32}))),
+                2=>Some(("engine.commands",json!({"filter":"synth."}))),
+                3=>Some(("engine.execute",json!({"command":"synth.catalog","params":{}}))),
+                4=>Some(("engine.execute",json!({"command":"soundlab.inspect","params":{"track":track.0}}))),
+                5=>Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}}))),
+                _=>None,
+            };
+            turn+=1;
+            if let Some((method,params))=call {
+                Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":format!("trumpet{turn}"),"name":"soundcraft","arguments":json!({"method":method,"params_json":params.to_string()}).to_string()}]}))
+            } else {Ok(reply("Your trumpet candidate is ready. Your track name and notes are preserved. Try AUDITION, then STORE to keep it."))}
+        })).unwrap().unwrap();
+        finish(&mut app);
+        assert!(Arc::ptr_eq(&before, &app.engine.session_arc()));
+        let state = app.run("soundlab.inspect", json!({"track":track.0})).unwrap();
+        assert_eq!(state["candidate"]["name"], "Trumpet preview");
+        assert!(app.assistant.panel.transcript().iter().any(|(role, text)| role == "Assistant" && text.contains("candidate is ready")));
+    }
+}
+
+#[test]
 fn assistant_maps_inputs_with_real_commands_and_undo_and_readable_activity() {
     let mut app = app();
     app.ui.ai.attach_frames = false;

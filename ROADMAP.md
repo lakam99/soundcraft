@@ -1,5 +1,10 @@
 # SoundCraft roadmap
 
+**Fork fix (2026-11-14):** AI command discovery uses a compact topic index and filtered schema
+pages. Oversized saved catalogs are reduced locally, and summary output exhaustion has one
+bounded retry while preserving conversation history. Sound design preserves existing MIDI
+clips and names, including empty clips that can still receive an instrument patch.
+
 ## Fork additions — 2026-11-13
 
 FORGE Hybrid adds a bounded modular synthesis engine, an original worn hardware-style rack with
@@ -11,7 +16,7 @@ completion of the upstream parity estimates below.
 
 **Stage: pre-alpha** · next: alpha, ~5% and ~110–180 h away (the alpha gate's three failing workflows)
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-14 · **Change:** minor (bounded AI discovery and recoverable context compaction) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 SoundCraft is a clean-room, pure-Rust digital audio workstation that aims at full parity with
 Avid Pro Tools, and then beyond it: faster, open, scriptable and agent-controllable. This page is

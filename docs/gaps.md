@@ -1,12 +1,17 @@
 # Where SoundCraft falls short of Pro Tools
 
+**Fork fix (2026-11-14):** AI discovery returns topic indexes and filtered parameter pages, while
+legacy saved catalogs shrink locally before summary requests. This removes catalog-driven
+compaction loops; bounded summary retries preserve history on failure. Model-driven sound
+design still needs listening feedback and never requires adding notes to an empty MIDI clip.
+
 **Fork update (2026-11-13):** G-08 now includes FORGE Hybrid's bounded modular/hybrid instrument
 and physical patching surface, AI-assisted candidate design, offline audition measurements and
 sampler/audio derivation. This does not close the remaining stock content, fidelity or hosting
 gaps. G-01 device choices now save immediately across restarts, with requested-versus-actual
 fallback feedback. See [FORGE sound lab](forge-sound-lab.md).
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-14 · **Change:** minor (bounded AI discovery and recoverable context compaction) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 Every known shortfall, one entry each, ranked by how much it stops a Pro Tools user from doing
 real work in SoundCraft. This is the work list: pick from the top. Rows marked **alpha blocker**
