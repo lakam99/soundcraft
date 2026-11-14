@@ -14,6 +14,7 @@ mod names;
 pub mod ops;
 mod rng;
 mod sequence;
+pub mod sequencer;
 mod smf;
 
 pub use names::{gm_drum_name, gm_program_name, note_name};

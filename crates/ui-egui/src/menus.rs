@@ -10,6 +10,19 @@ use soundcraft_engine::catalog;
 
 /// UI-layer commands: (id, label, catalog path or "", shortcut).
 pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
+    ("pulse.new", "Add PULSE Sequencer", "Track > Add PULSE Sequencer", None),
+    ("pulse.open", "PULSE Step Sequencer", "Window > PULSE Step Sequencer", None),
+    ("pulse.close", "Close PULSE", "", None),
+    ("pulse.inspect", "Inspect PULSE Candidate", "", None),
+    ("pulse.preview", "Preview Step Program", "", None),
+    ("pulse.steps", "Bulk Edit Steps", "", None),
+    ("pulse.run", "Audition Step Program", "", None),
+    ("pulse.stop", "Stop Step Program", "", None),
+    ("pulse.commit", "Store Step Program", "", None),
+    ("pulse.discard", "Revert Step Program", "", None),
+    ("pulse.latch", "Latch Held MIDI Chord", "", None),
+    ("pulse.print", "Print Accepted Pattern", "", None),
+    ("pulse.detach", "Edit PULSE as MIDI", "Clip > Edit PULSE as MIDI", None),
     ("soundlab.new", "Add FORGE Instrument", "Track > Add FORGE Instrument", None),
     ("soundlab.open", "FORGE Sound Lab", "Window > FORGE Sound Lab", None),
     ("soundlab.close", "Close FORGE Instrument", "", None),
@@ -290,6 +303,9 @@ pub fn tree() -> Vec<MenuNode> {
     }
     insert_path(&mut roots, "Window > Reset Panel Layout");
     insert_path(&mut roots, "Window > AI Chat");
+    for path in ["Track > Add PULSE Sequencer", "Window > PULSE Step Sequencer", "Clip > Edit PULSE as MIDI"] {
+        insert_path(&mut roots, path);
+    }
     // Not in the observed catalog either; Pro Tools lists it right under Identify Sync Point.
     if let Some(clip) = roots.iter_mut().find(|n| n.path == "Clip") {
         let at = clip.children.iter().position(|n| n.path == "Clip > Identify Sync Point").map_or(clip.children.len(), |i| i + 1);
@@ -630,6 +646,9 @@ fn wants_dialog(id: &str) -> bool {
 
 /// Handle UI-layer commands. Returns None when `id` is not a UI command.
 pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
+    if let Some(result) = crate::sequencer::command(app, id, p) {
+        return Some(result);
+    }
     if let Some(result) = crate::sound_lab::command(app, id, p) {
         return Some(result);
     }

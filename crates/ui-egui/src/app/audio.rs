@@ -18,6 +18,7 @@ impl SoundApp {
         }
         self.persist_audio_configuration(&cfg)?;
         crate::sound_lab::stop(self);
+        crate::sequencer::stop(self);
         self.ui.audio = cfg;
         let at = self.position();
         if let Some(p) = &self.player {
@@ -167,6 +168,7 @@ impl SoundApp {
     /// Reopen the audio devices, keeping a take in progress.
     pub fn reconnect_audio(&mut self) {
         crate::sound_lab::stop(self);
+        crate::sequencer::stop(self);
         if self.is_playing() || self.engine.transport.recording {
             self.stop_play();
         }

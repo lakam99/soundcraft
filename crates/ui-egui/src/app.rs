@@ -31,6 +31,7 @@ impl SoundApp {
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
             sound_lab: crate::sound_lab::Runtime::default(),
+            sequencer: crate::sequencer::Runtime::default(),
             preferences_writer: None,
             live_midi: crate::live_midi::Runtime::default(),
             workspace: crate::workspace::Runtime::default(),
@@ -205,6 +206,7 @@ impl SoundApp {
         // Stop the old playback before sending a replacement session to the audio thread.
         self.handle_transport(dt);
         self.poll_live_midi();
+        crate::sequencer::tick(self);
         if self.engine.revision != self.last_rev || self.sound_lab.audio_dirty {
             self.sound_lab.audio_dirty = false;
             self.last_rev = self.engine.revision;

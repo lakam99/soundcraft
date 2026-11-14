@@ -56,6 +56,12 @@ impl Default for Runtime {
     }
 }
 impl Runtime {
+    pub(crate) fn held_notes(&self, track: TrackId) -> Vec<u8> {
+        let mut keys: Vec<u8> = self.held.keys().filter(|(t, _, _)| *t == track).map(|(_, _, n)| *n).collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
     pub(crate) fn missing_input(&self, session: &soundcraft_model::Session) -> Option<String> {
         session
             .tracks
@@ -115,7 +121,8 @@ impl SoundApp {
             .tracks
             .iter()
             .filter(|track| {
-                track.kind.is_midi()
+                !self.sequencer.running
+                    && track.kind.is_midi()
                     && !track.inactive
                     && track.instrument.is_some()
                     && (track.mixer.record_arm || (track.mixer.input_monitor && Some(track.id) == selected))
@@ -406,6 +413,27 @@ pub(crate) fn command(app: &mut SoundApp, id: &str, params: &Value) -> Option<Re
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn sequencer_latches_only_its_target_chord_and_keeps_memory_after_release() {
+        let mut app = crate::SoundApp::new_classic(soundcraft_engine::Engine::default(), None, crate::Services::default());
+        app.run("pulse.new", serde_json::json!({})).unwrap();
+        let track = app.engine.session().tracks[0].id;
+        for note in [60, 63, 67] {
+            app.live_midi.held.insert((track, 0, note), 100);
+        }
+        app.live_midi.held.insert((soundcraft_model::TrackId(999), 0, 80), 100);
+        let before = app.engine.session_arc();
+        app.run("pulse.latch", serde_json::json!({})).unwrap();
+        let state = app.run("pulse.inspect", serde_json::json!({})).unwrap();
+        assert_eq!(state["program"]["banks"][0]["lanes"][0]["chord"], serde_json::json!([0, 3, 7]));
+        app.live_midi.held.clear();
+        app.run("pulse.run", serde_json::json!({})).unwrap();
+        let clip = app.engine.session().edit.selected_clips[0];
+        let audible = app.audible_session();
+        let soundcraft_model::ClipContent::Midi { sequence } = &audible.find_clip(clip).unwrap().1.content else { panic!("Expected MIDI") };
+        assert_eq!(sequence.notes.iter().take(3).map(|n| n.pitch).collect::<Vec<_>>(), [60, 63, 67]);
+        assert!(std::sync::Arc::ptr_eq(&before, &app.engine.session_arc()));
+    }
     use super::*;
     fn app() -> SoundApp {
         let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, crate::Services::default());

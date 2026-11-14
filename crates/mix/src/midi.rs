@@ -61,7 +61,9 @@ pub(crate) fn schedule_notes(s: &Session, t: &Track, pos: Samples, frames: usize
                 continue;
             }
             let on = s.tempo.tick_to_samples(base.saturating_add(n.start), sr);
-            let off = s.tempo.tick_to_samples(base.saturating_add(n.start).saturating_add(n.length), sr).min(clip.end());
+            // The next block may start at the part end and skip this clip entirely. Release
+            // inside the final sample, including when real-time duration extends a tied note.
+            let off = s.tempo.tick_to_samples(base.saturating_add(n.start).saturating_add(n.length), sr).min(clip.end().saturating_sub(1));
             if on >= clip.end() {
                 continue;
             }

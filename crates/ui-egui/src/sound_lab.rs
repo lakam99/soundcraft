@@ -17,7 +17,7 @@ use std::sync::{
 };
 
 mod cables;
-mod skin;
+pub(crate) mod skin;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -479,6 +479,9 @@ fn spawn_render(
 }
 impl SoundApp {
     pub(crate) fn audible_session(&self) -> Arc<soundcraft_model::Session> {
+        crate::sequencer::audible(self, self.forge_session())
+    }
+    fn forge_session(&self) -> Arc<soundcraft_model::Session> {
         let base = self.engine.session_arc();
         let Some(tid) = self.sound_lab.active else { return base };
         let Some(draft) = self.sound_lab.drafts.get(&tid) else { return base };

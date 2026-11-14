@@ -29,7 +29,7 @@ impl SoundApp {
         if self.engine.transport.playing { self.engine.transport.position } else { self.engine.session().edit.selection.start }
     }
 
-    fn start_play(&mut self, from: Samples, end: Option<Samples>, looped: Option<Range>) {
+    pub(crate) fn start_play(&mut self, from: Samples, end: Option<Samples>, looped: Option<Range>) {
         if let Some(p) = &self.player {
             p.update_session(self.audible_session());
             p.play(from, end, looped);
@@ -48,6 +48,10 @@ impl SoundApp {
     }
 
     pub(crate) fn stop_play(&mut self) {
+        if self.sequencer.running {
+            crate::sequencer::stop(self);
+            return;
+        }
         if let Some(p) = &self.player {
             self.engine.transport.position = p.position();
             // Half-speed is a separate command. Stop must not leave that rate for the next Play.
@@ -91,6 +95,10 @@ impl SoundApp {
     }
 
     fn start_recording(&mut self) {
+        if self.sequencer.running || self.sequencer.has_candidate() {
+            self.ui.status = "Press STORE or REVERT in PULSE before recording.".into();
+            return;
+        }
         if self.sound_lab.has_active_candidate() {
             self.ui.status = "Press STORE or REVERT in FORGE before recording.".into();
             return;
@@ -252,6 +260,10 @@ impl SoundApp {
     /// automation since the previous one, and Stop writes a last point. A pass and whatever is
     /// dragged during it, its fader included, are one undo step.
     pub(crate) fn write_automation(&mut self) {
+        // PULSE is an isolated audition, never an automation-write pass on the song.
+        if self.sequencer.running {
+            return;
+        }
         use soundcraft_model::AutomationMode as M;
         const PASS: &str = "automation_pass";
         let playing = self.is_playing();
@@ -360,8 +372,10 @@ impl SoundApp {
     pub(crate) fn handle_transport(&mut self, dt: f32) {
         let reqs: Vec<TransportRequest> = std::mem::take(&mut self.engine.transport_requests);
         for r in reqs {
+            crate::sequencer::song_transport(self, &r);
             match r {
                 TransportRequest::ResetSession => {
+                    self.sequencer = crate::sequencer::Runtime::default();
                     if let Some(p) = &self.player {
                         p.stop();
                         p.set_recording(false);

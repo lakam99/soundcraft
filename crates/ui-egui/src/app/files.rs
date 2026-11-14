@@ -6,6 +6,8 @@ impl SoundApp {
     /// one's pixels, so every replacement path bumps the epoch.
     pub(crate) fn document_replaced(&mut self) {
         crate::sound_lab::stop(self);
+        crate::sequencer::stop(self);
+        self.sequencer = crate::sequencer::Runtime::default();
         self.sound_lab = crate::sound_lab::Runtime::default();
         self.live_midi.reset();
         self.doc_epoch = self.doc_epoch.wrapping_add(1);

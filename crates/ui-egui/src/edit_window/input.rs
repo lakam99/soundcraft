@@ -512,6 +512,19 @@ fn clip_context_menu(app: &mut SoundApp, ui: &mut Ui, clip: Option<ClipId>) {
         }
         return;
     };
+    if app.engine.session().find_clip(c).is_some_and(|(_, clip)| clip.step_sequencer.is_some()) {
+        for (label, command) in [("Open PULSE sequencer", "pulse.open"), ("Edit PULSE as MIDI", "pulse.detach")] {
+            let r = ui.button(label);
+            crate::assistant::register(app, command, &r, label);
+            if r.clicked() {
+                if let Err(e) = app.run(command, json!({"clip":c.0})) {
+                    app.ui.status = e;
+                }
+                ui.close();
+            }
+        }
+        ui.separator();
+    }
     // A clip of the edit selection acts on the whole selection (the commands default to it); any other clip acts alone.
     let in_selection = clip_in_selection(app.engine.session(), c);
     let target = if in_selection { json!({}) } else { json!({"clips": [c.0]}) };
