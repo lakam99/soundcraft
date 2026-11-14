@@ -413,6 +413,10 @@ impl Engine {
 
     /// Record an undo point manually (for interactive gestures committed by the UI).
     pub fn push_undo(&mut self, label: &str, before: Arc<Session>) {
+        // Audio placement and manual UI edits made during a MIDI take share its original snapshot.
+        if self.merge_hold.as_deref() == Some("midi-recording") && self.merge_key.as_deref() == Some("midi-recording") {
+            return;
+        }
         if Arc::ptr_eq(&before, &self.doc) {
             return;
         }
@@ -427,7 +431,28 @@ impl Engine {
     /// Whether command `id` must wait for the take being recorded: nothing may replace the
     /// session or quit under it.
     pub fn blocked_while_recording(&self, id: &str) -> bool {
-        self.transport.recording && matches!(id, "session.new" | "session.open" | "session.close" | "session.revert" | "app.quit")
+        (self.transport.recording && matches!(id, "session.new" | "session.open" | "session.close" | "session.revert" | "app.quit"))
+            || (self.merge_hold.as_deref() == Some("midi-recording")
+                && (id.contains("tempo")
+                    || id.starts_with("clip.")
+                    || (id.starts_with("transport.")
+                        && !matches!(id, "transport.stop" | "transport.pause" | "transport.toggle" | "transport.record" | "transport.status"))
+                    || matches!(
+                        id,
+                        "track.delete"
+                            | "track.make_inactive"
+                            | "track.remove"
+                            | "mix.instrument"
+                            | "midi.input"
+                            | "edit.undo"
+                            | "edit.redo"
+                            | "transport.locate"
+                            | "transport.rtz"
+                            | "transport.play_from"
+                            | "edit.cut"
+                            | "edit.delete"
+                            | "edit.clear"
+                    )))
     }
 
     /// Run a command by id. Never panics: escaped panics become `EngineError::Internal` and the
@@ -449,6 +474,8 @@ impl Engine {
             return self.execute_view(spec, params);
         }
         let before = Arc::clone(&self.doc);
+        let recording_merge = self.merge_hold.as_deref() == Some("midi-recording");
+        let continuing_take = recording_merge && self.merge_key.as_deref() == Some("midi-recording");
         let rev = self.revision;
         let dirty = self.dirty;
         let side_effects = (self.clipboard.clone(), self.messages.clone(), self.transport_requests.clone(), self.last_selection.clone());
@@ -465,13 +492,18 @@ impl Engine {
         };
         if !Arc::ptr_eq(&before, &self.doc) {
             // Only a change to the document ends a gesture, so Stop doesn't split the pass it ends.
-            self.merge_key = None;
+            if !recording_merge {
+                self.merge_key = None;
+            }
         }
         match result {
             Ok(v) => {
                 cmd::remember_selection(self, &before);
-                if spec.undoable && !Arc::ptr_eq(&before, &self.doc) {
+                if spec.undoable && !Arc::ptr_eq(&before, &self.doc) && !continuing_take {
                     self.push_undo(spec.label, before);
+                    if recording_merge {
+                        self.merge_key = Some("midi-recording".into());
+                    }
                 }
                 if spec.journal {
                     self.journal_append(id, params);
@@ -538,7 +570,10 @@ impl Engine {
 
     /// End a gesture started with `execute_merged`.
     pub fn end_merge(&mut self) {
-        self.merge_key = None;
+        // A MIDI take checkpoints repeatedly; unrelated focus changes must not split its Undo.
+        if self.merge_hold.as_deref() != Some("midi-recording") {
+            self.merge_key = None;
+        }
     }
 
     /// Append a journaled command, clamping its params to [`MAX_JOURNAL_ENTRY_BYTES`] and the

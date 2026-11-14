@@ -44,7 +44,7 @@ Errors: `{"id": 1, "ok": false, "error": "bad parameters for `mix.volume`: no tr
 | `engine.parity` | `{}` | Parity report against the incumbent's menu catalog. |
 | `session.inspect` | `{detail?: "summary"|"full"}` | The document: tracks, clips (with times), inserts (+params when full), sends, routing, automation, markers, groups, busses, sources (`loaded` true when decoded audio is in the pool), selection, zoom (`samples_per_px`, `scroll`), transport, undo label. |
 | `ui.inspect` | `{}` | UI state (`window`, panels, dialogs), window size, playing/position, audio device, and `edit_layout` (timeline rect and every track row's rect, for clicking). |
-| `ui.set` | any `UiState` fields | e.g. `{"window": "Mix", "narrow_mix": true}`. |
+| `ui.set` | any `UiState` fields | e.g. `{"show_mix": true, "narrow_mix": true}`. Legacy `{"window":"Mix"}` opens the docked mixer and retains the timeline. |
 | `ui.menu.list` | `{}` | Every catalog menu path and the command that implements it (or null). |
 | `ui.menu.invoke` | `{path}` or `{id}` | Like clicking the menu item: may open its dialog (e.g. `"Track > New..."`). |
 | `ui.click` | `{x, y, button?, count?, cmd?, shift?, alt?, ctrl?}` | Synthetic click (window points). The reply is sent only after a UI pass has applied the press/release. |
@@ -101,7 +101,7 @@ Tracks and Groups, Clips, MIDI Editor, Memory Locations, and Undo History use mo
 
 The Edit window starts with Tracks and Groups in a 168-point column in a dock at the left edge, Clips in a 230-point column in a dock at the right edge, and the MIDI Editor under the session view between them. Both docks run the window's full height. Mix starts with Tracks and Groups docked at its left edge. Memory Locations and Undo History float. A dock column stacks tab groups top to bottom: a panel dropped on a group's middle joins it as a tab, on its upper or lower third stacks a new group above or below it, and at a column's edge makes a new column. A panel dropped at an empty window edge makes a dock there. Layouts, active tabs, panel visibility, and floating rectangles are saved with the app's existing UI preferences. These operations do not edit document contents.
 
-Panel IDs: `tracks`, `clips`, `midi`, `memory`, `history`. The protected center is `canvas`.
+Panel IDs: `tracks`, `clips`, `mix`, `midi`, `memory`, `history`, `aiChat`. The protected center is `canvas`. The docked `mix` panel opens below the timeline in Edit; the separate Mix window retains its full-height mixer.
 
 `ui.dock` accepts `operation` and `panel`. Operations are `open`, `close`, `activate`, `float` (with finite positive `rect: [x, y, width, height]`), or `move` (with `target` and `zone: tab|center|left|right|top|bottom|above|below`; PascalCase names such as `Left` also parse). `open` and `activate` show a hidden panel at its saved location and bring a visible panel to the front. A panel with no saved location, or whose saved anchor cannot be restored, opens at its default place: Tracks and Groups and Clips join their dock's first group, or make that dock again at its default width when it is gone; the MIDI Editor opens under the session view; Memory Locations and Undo History float at their default rectangles. Center and `tab` group with the target; side zones split beside it; `above` and `below` stack the panel in a new group above or below a floating target's group. `ui.dock.reset` restores the default arrangement. Invalid moves return an error without changing the layout.
 

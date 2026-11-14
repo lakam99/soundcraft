@@ -228,6 +228,9 @@ fn toggle_runtime(
     get: fn(&soundcraft_model::Track) -> bool,
 ) -> Result<Value> {
     let tracks = tracks_required(e, cmd, p)?;
+    if cmd == "mix.record_arm" && e.transport.recording && e.session().tracks.iter().any(|track| track.kind.is_midi() && track.mixer.record_arm) {
+        return Err(bad(cmd, "stop MIDI recording before changing armed tracks"));
+    }
     let s = e.runtime_session_mut();
     let v = p.get("value").and_then(Value::as_bool).unwrap_or_else(|| !tracks.iter().all(|t| s.track(*t).is_some_and(get)));
     for t in &tracks {

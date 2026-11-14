@@ -23,6 +23,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod devices;
+pub mod midi_input;
 pub mod record;
 
 pub use devices::AudioConfig;
@@ -119,6 +120,8 @@ enum Cmd {
     OldSessions(SyncSender<Arc<Session>>),
     Input(Arc<record::InputRing>),
     Recording(bool),
+    MidiInput(Arc<midi_input::MidiBus>),
+    Audition(Option<Arc<soundcraft_audio_io::AudioBuffer>>, f32),
     Play {
         from: Samples,
         end: Option<Samples>,
@@ -163,6 +166,7 @@ pub struct Player {
     #[cfg(target_arch = "wasm32")]
     _stream: Option<cpal::Stream>,
     pub device_name: String,
+    pub device_system: String,
     pub device_rate: u32,
     /// Output channels the device was opened with (0 for the silent clock).
     pub device_channels: u16,
@@ -173,6 +177,29 @@ pub struct Player {
 }
 
 impl Player {
+    /// Finite standalone audition, independent of timeline clips and recording input.
+    pub fn audition(&self, audio: Arc<soundcraft_audio_io::AudioBuffer>, gain: f32) -> Result<(), String> {
+        if self.silent {
+            return Err("No audio output is open; choose or reconnect an output device".into());
+        }
+        if audio.frames() == 0
+            || audio.frames() > 2_000_000
+            || audio.channels.len() != 2
+            || audio.channels.iter().any(|c| c.len() != audio.frames() || c.iter().any(|v| !v.is_finite()))
+            || audio.sample_rate == 0
+            || !gain.is_finite()
+            || !(0.0..=1.0).contains(&gain)
+        {
+            return Err("Invalid audition buffer or gain".into());
+        }
+        self.tx.send(Cmd::Audition(Some(audio), gain)).map_err(|_| "Audio output is closed".into())
+    }
+    pub fn stop_audition(&self) {
+        let _ = self.tx.send(Cmd::Audition(None, 0.0));
+    }
+    pub fn set_midi_input(&self, bus: Arc<midi_input::MidiBus>) {
+        let _ = self.tx.send(Cmd::MidiInput(bus));
+    }
     /// Open the default output device. Never fails: without a device it runs a silent clock.
     pub fn new(session: Arc<Session>) -> Player {
         Player::with_config(session, &AudioConfig::default())
@@ -181,7 +208,8 @@ impl Player {
     /// Open the output device `cfg` chooses (system, device, rate, buffer size), falling back to the
     /// defaults for whatever is unavailable. Never fails: without a device it runs a silent clock.
     pub fn with_config(session: Arc<Session>, cfg: &AudioConfig) -> Player {
-        let p = Player::open(Arc::clone(&session), cfg);
+        let mut p = Player::open(Arc::clone(&session), cfg);
+        p.device_system = devices::host(cfg).id().name().to_owned();
         p.side().return_old_sessions(&p.tx);
         // Hand the initial session's third-party plugins over.
         p.update_session(session);
@@ -269,6 +297,7 @@ impl Player {
                             side: new_side(grx),
                             _stream: Some(stream),
                             device_name: name,
+                            device_system: String::new(),
                             device_rate: rate,
                             device_channels: config.channels,
                             device_buffer: buffer,
@@ -346,6 +375,7 @@ impl Player {
             side,
             _stream: None,
             device_name: "No audio device (silent)".into(),
+            device_system: String::new(),
             device_rate: rate,
             device_channels: 0,
             device_buffer: None,
@@ -369,6 +399,7 @@ impl Player {
             side,
             _stream: None,
             device_name: "No audio device".into(),
+            device_system: String::new(),
             device_rate: session.sample_rate.hz(),
             device_channels: 0,
             device_buffer: None,

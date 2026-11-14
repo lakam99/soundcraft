@@ -51,10 +51,11 @@ pub fn show_separate(app: &mut SoundApp, ctx: &egui::Context) {
     });
 }
 
-/// The separate Mix window was closed: Mix goes back into the main window.
+/// The separate Mix window was closed: restore its docked panel under the timeline.
 pub fn separate_closed(app: &mut SoundApp) {
     app.ui.mix_separate = false;
-    app.ui.window = crate::MainWindow::Mix;
+    app.ui.window = crate::MainWindow::Edit;
+    app.ui.show_mix = true;
 }
 
 /// Draw the horizontal Mix window strips for visible non-video tracks, scroll one requested strip into view and open
@@ -69,7 +70,7 @@ pub(crate) fn content(app: &mut SoundApp, ui: &mut Ui) {
     let scroll_to = app.mix_scroll_into_view.take();
     egui::ScrollArea::horizontal().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 1.0;
+            ui.spacing_mut().item_spacing.x = if crate::theme::is_modern() { 6.0 } else { 1.0 };
             for id in ids {
                 strip(app, ui, id, snap.as_ref(), scroll_to == Some(id));
             }
@@ -156,6 +157,7 @@ fn section_label(ui: &Ui, r: Rect, text: &str, narrow: bool) {
 const STRIP_FOOT_H: f32 = 64.0;
 
 /// One mixer strip's geometry and settings, shared by its sections.
+#[derive(Clone)]
 struct StripCtx<'a> {
     track: &'a Track,
     id: TrackId,
@@ -182,7 +184,7 @@ fn strip(app: &mut SoundApp, ui: &mut Ui, id: TrackId, snap: Option<&MeterSnapsh
     let Some(track) = session.track(id) else { return };
     let narrow = app.ui.narrow_mix;
     let w = strip_width(narrow);
-    let h = ui.available_height().max(560.0);
+    let h = ui.available_height().max(340.0);
     let (r, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     if scroll_here {
         // egui stops `item_spacing` short of the edge (the scroll area's, not the strips' 1 pt),
@@ -192,9 +194,17 @@ fn strip(app: &mut SoundApp, ui: &mut Ui, id: TrackId, snap: Option<&MeterSnapsh
     }
     let selected = app.engine.session().edit.selected_tracks.contains(&id);
     let bg = if selected { t.strip_selected } else { t.strip_bg };
-    vgradient(ui.painter(), r, shade(bg, 0.06), bg);
-    ui.painter().vline(r.min.x + 0.5, r.y_range(), Stroke::new(1.0, t.edge_light));
-    let mut y = r.min.y + 4.0;
+    if crate::theme::is_modern() {
+        ui.painter().rect(r.shrink(1.0), 6.0, bg, if selected { Stroke::new(1.0, t.accent) } else { Stroke::NONE }, StrokeKind::Inside);
+        if app.ui.mix_views.iter().any(|view| view == "color") {
+            ui.painter().rect_filled(Rect::from_min_size(r.min + vec2(5.0, 2.0), vec2((w - 10.0).max(1.0), 3.0)), 2.0, rgb(track.color));
+        }
+    } else {
+        vgradient(ui.painter(), r, shade(bg, 0.06), bg);
+        ui.painter().vline(r.min.x + 0.5, r.y_range(), Stroke::new(1.0, t.edge_light));
+    }
+    let modern = crate::theme::is_modern();
+    let mut y = r.min.y + if modern { 48.0 } else { 4.0 };
     let inner_w = w - 8.0;
     let x0 = r.min.x + 4.0;
     let views = app.ui.mix_views.clone();
@@ -202,14 +212,47 @@ fn strip(app: &mut SoundApp, ui: &mut Ui, id: TrackId, snap: Option<&MeterSnapsh
     let cx = StripCtx { track, id, r, w, x0, inner_w, narrow, selected, views, all };
     // Preamp, instrument and object rows keep their height on every strip so sections line up;
     // their controls only appear on tracks with an input.
-    y = preamp_section(app, ui, &cx, y);
-    y = instrument_section(app, ui, &cx, y);
-    y = object_section(app, ui, &cx, y);
-    y = slot_sections(app, ui, &cx, y);
-    y = eq_section(ui, &cx, y);
-    y = comments_section(app, ui, &cx, y);
-    y = io_section(app, ui, &cx, y);
-    y = group_selector(app, ui, &cx, y);
+    if h < 560.0 || modern {
+        // Keep the fader on screen in a bottom panel. Optional channel sections remain in a popup
+        // rather than extending the strip below its name plate.
+        let mut row =
+            ui.new_child(egui::UiBuilder::new().id_salt(("mix-details", id.0)).max_rect(Rect::from_min_size(pos2(x0, y), vec2(inner_w, 20.0))));
+        let response = row
+            .add_sized([inner_w, if modern { 24.0 } else { 18.0 }], egui::Button::new("Details"))
+            .on_hover_text("Routing, inserts, sends, instruments and channel settings");
+        let response = if modern { response.accessible_name(format!("Channel details for {}", track.name)) } else { response };
+        crate::assistant::register(app, &format!("mix.track.{}.details", id.0), &response, &format!("Channel details for {}", track.name));
+        egui::Popup::menu(&response).show(|ui| {
+            ui.set_min_width(180.0);
+            let origin = ui.cursor().min;
+            let details = StripCtx { x0: origin.x + 4.0, inner_w: 172.0, w: 180.0, narrow: false, ..cx.clone() };
+            let mut end = preamp_section(app, ui, &details, origin.y);
+            end = instrument_section(app, ui, &details, end);
+            end = object_section(app, ui, &details, end);
+            end = slot_sections(app, ui, &details, end);
+            end = eq_section(ui, &details, end);
+            end = comments_section(app, ui, &details, end);
+            if modern {
+                end = io_section(app, ui, &details, end);
+            }
+            end = group_selector(app, ui, &details, end);
+            ui.allocate_space(vec2(180.0, (end - origin.y).max(20.0)));
+        });
+        y += if modern { 32.0 } else { 22.0 };
+    } else {
+        y = preamp_section(app, ui, &cx, y);
+        y = instrument_section(app, ui, &cx, y);
+        y = object_section(app, ui, &cx, y);
+        y = slot_sections(app, ui, &cx, y);
+        y = eq_section(ui, &cx, y);
+        y = comments_section(app, ui, &cx, y);
+    }
+    if !modern {
+        y = io_section(app, ui, &cx, y);
+    }
+    if h >= 560.0 && !modern {
+        y = group_selector(app, ui, &cx, y);
+    }
     y = pan_section(app, ui, &cx, y);
     y = toggle_rows(app, ui, &cx, y);
     fader_and_meter(app, ui, &cx, y, snap);
@@ -476,7 +519,7 @@ fn pan_section(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, mut y: f32) -
     let surround_out =
         out_fmt.channels() > 2 && !out_fmt.is_ambisonic() && !matches!(track.kind, TrackKind::Master | TrackKind::Vca) && track.channels() <= 2;
     if surround_out {
-        let size = (inner_w - 4.0).min(88.0);
+        let size = (inner_w - 4.0).min(if cx.r.height() < 560.0 { 40.0 } else { 88.0 });
         let sp = track.mixer.surround.unwrap_or_else(|| {
             SurroundPan::from_stereo(if track.mixer.pan.len() == 1 { track.mixer.pan.first().copied().unwrap_or(0.0) } else { 0.0 })
         });
@@ -584,7 +627,8 @@ fn fader_and_meter(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, y: f32, s
     let StripCtx { track, id, narrow, x0, inner_w, r, .. } = *cx;
     let t = Tokens::current();
     // Fader + meter.
-    let fh = (r.max.y - STRIP_FOOT_H - y).max(120.0);
+    let footer = if crate::theme::is_modern() { 34.0 } else { STRIP_FOOT_H };
+    let fh = (r.max.y - footer - y).max(if r.height() < 560.0 { 48.0 } else { 120.0 });
     let wide_meter = (if track.kind == TrackKind::Master { app.engine.session().main_format() } else { track.format }).channels() > 2;
     let fr = Rect::from_min_size(pos2(x0, y), vec2(inner_w * if wide_meter { 0.45 } else { 0.6 }, fh));
     crate::assistant::register_area(
@@ -601,7 +645,7 @@ fn fader_and_meter(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>, y: f32, s
     let md = app.meters.get(&id).copied().unwrap_or_default();
     let slot = fader_slot(fr);
     let mr = Rect::from_min_max(pos2(fr.max.x + 4.0, slot.min.y - 5.0), pos2(x0 + inner_w - 2.0, slot.max.y + if wide_meter { 17.0 } else { 1.0 }));
-    if !narrow && !wide_meter {
+    if !narrow && !wide_meter && fh >= 120.0 {
         meter_scale(ui.painter(), mr, mr.min.x - 1.0);
     }
     let strip_fmt = if track.kind == TrackKind::Master { app.engine.session().main_format() } else { track.format };
@@ -630,7 +674,9 @@ fn name_and_readout(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>) {
     let StripCtx { track, id, x0, inner_w, r, w, selected, .. } = *cx;
     let t = Tokens::current();
     // Volume readout and name.
-    let vr = Rect::from_min_size(pos2(x0 + 4.0, r.max.y - STRIP_FOOT_H + 4.0), vec2(inner_w - 8.0, 15.0));
+    let modern = crate::theme::is_modern();
+    let footer = if modern { 34.0 } else { STRIP_FOOT_H };
+    let vr = Rect::from_min_size(pos2(x0 + 4.0, r.max.y - footer + 4.0), vec2(inner_w - 8.0, 15.0));
     inset(ui.painter(), vr, t.counter_bg);
     let (_, entered) = editable_readout(
         ui,
@@ -657,16 +703,25 @@ fn name_and_readout(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>) {
         TrackKind::Folder => "folder",
         TrackKind::Video => "video",
     };
-    ui.painter().text(pos2(vr.center().x, vr.max.y + 9.0), Align2::CENTER_CENTER, kind, regular(9.5), t.text_dim);
-    let nr = Rect::from_min_size(pos2(x0, r.max.y - 26.0), vec2(inner_w, 18.0));
-    ui.painter().rect(
-        nr,
-        CornerRadius::same(2),
-        if selected { t.name_field_sel } else { t.name_field },
-        Stroke::new(1.0, Color32::BLACK),
-        StrokeKind::Inside,
+    ui.painter().text(
+        pos2(vr.center().x, if modern { r.min.y + 35.0 } else { vr.max.y + 9.0 }),
+        Align2::CENTER_CENTER,
+        kind,
+        regular(if modern { 11.0 } else { 9.5 }),
+        t.text_dim,
     );
-    ui.painter().with_clip_rect(nr).text(nr.center(), Align2::CENTER_CENTER, &track.name, bold(12.0), t.text_dark);
+    let nr = Rect::from_min_size(pos2(x0, if modern { r.min.y + 9.0 } else { r.max.y - 26.0 }), vec2(inner_w, if modern { 22.0 } else { 18.0 }));
+    if !modern {
+        ui.painter().rect(
+            nr,
+            CornerRadius::same(2),
+            if selected { t.name_field_sel } else { t.name_field },
+            Stroke::new(1.0, if crate::theme::is_modern() { t.border } else { Color32::BLACK }),
+            StrokeKind::Inside,
+        );
+    }
+    let name_color = if modern { t.text } else { t.text_dark };
+    ui.painter().with_clip_rect(nr).text(nr.center(), Align2::CENTER_CENTER, &track.name, bold(12.0), name_color);
     let nresp = ui.interact(nr, ui.scope_id().with(("strip_name", id.0)), Sense::click());
     if nresp.clicked() {
         crate::edit_window::click_track(app, id, ui.input(|i| i.modifiers), |_, t| !t.hidden && t.kind != TrackKind::Video);
@@ -675,10 +730,12 @@ fn name_and_readout(app: &mut SoundApp, ui: &mut Ui, cx: &StripCtx<'_>) {
         app.dialogs.open_rename_track(id, &track.name);
     }
     nresp.context_menu(|ui| crate::edit_window::track_context_menu(app, ui, id));
-    if app.ui.mix_views.iter().any(|v| v == "color") {
+    if !modern && app.ui.mix_views.iter().any(|v| v == "color") {
         ui.painter().rect_filled(Rect::from_min_size(pos2(r.min.x, r.max.y - 5.0), vec2(w, 5.0)), 0.0, rgb(track.color));
     }
-    ui.painter().line_segment([pos2(r.max.x, r.min.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, t.border));
+    if !modern {
+        ui.painter().line_segment([pos2(r.max.x, r.min.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, t.border));
+    }
 }
 
 #[cfg(test)]

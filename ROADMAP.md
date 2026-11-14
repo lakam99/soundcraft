@@ -1,8 +1,17 @@
 # SoundCraft roadmap
 
+## Fork additions — 2026-11-13
+
+FORGE Hybrid adds a bounded modular synthesis engine, an original worn hardware-style rack with
+material knobs, detented selectors and textured patch leads, AI-built preview candidates,
+undoable patch commits, finite worker-rendered auditions, and separate sampler/audio derivation.
+Audio device requests save immediately in machine-local preferences and remain visible when a
+device falls back. See [the FORGE workflow](docs/forge-sound-lab.md). These additions do not imply
+completion of the upstream parity estimates below.
+
 **Stage: pre-alpha** · next: alpha, ~5% and ~110–180 h away (the alpha gate's three failing workflows)
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-25 · **Change:** trivial (Cancel Zoom Toggle, side panels in dock columns, Auto Pan stereo balance, Clip List Auto Rename, Strip Silence rectangles, Strip Silence Rename, Strip Silence Extract and Separate, Clip Looping dialog, AudioSuite Vari-Fi speed ramps, Auto Pan plugin, Subharmonic plugin, Ring Modulator plugin, Float32 file headroom) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 SoundCraft is a clean-room, pure-Rust digital audio workstation that aims at full parity with
 Avid Pro Tools, and then beyond it: faster, open, scriptable and agent-controllable. This page is
@@ -121,6 +130,11 @@ mutated and truncated movies. Field reports from the first public week are track
 [gaps.md](docs/gaps.md) (G-04).
 
 ## Progress log
+
+Fork update: native MIDI input/monitoring and checkpointed MIDI recording, per-track routing,
+rotary built-in effect controls and saved material skins. Physical keyboard monitoring and
+recording were verified on Windows; external MIDI output/clock, loop MIDI recording and
+broader platform/device verification remain gaps.
 
 - **2026-10-25:** Alt+Shift+E (`view.zoom_toggle_cancel`) and an Alt-click on the Zoom Toggle button cancel Zoom Toggle and keep the current view: the zoom, the scroll and the track heights stay as they are, and the button is no longer lit. The next Zoom Toggle zooms in from that view and goes back to it. No readiness percentage change.
 - **2026-10-25:** Tracks and Groups and the Clip List sit in dock columns that run the Edit window's full height at its left and right edges, with the MIDI Editor under the session view between them; Mix docks Tracks and Groups at its left edge. A panel dragged onto a dock group joins it as a tab, stacks above or below it, or makes a new column; one dragged to an empty window edge makes a dock there. A list with no saved place reopens in its dock, and makes the dock again when it is gone. Preferences and window configurations saved with the earlier split-frame layouts load with the new default layouts and keep their other settings. No readiness percentage change.

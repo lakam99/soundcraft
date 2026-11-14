@@ -298,6 +298,82 @@ fn audio_state_plays_and_stops_at_end() {
 }
 
 #[test]
+fn forge_audition_is_finite_resampled_stoppable_and_does_not_start_transport() {
+    let shared = Arc::new(Shared {
+        position: AtomicI64::new(0),
+        playing: AtomicBool::new(false),
+        speed: AtomicU32::new(1000),
+        meters: Mutex::new(MeterSnapshot::default()),
+    });
+    let (tx, rx) = channel();
+    let mut state = AudioState::new(rx, shared.clone(), Arc::new(Session::default()), 48000.0, channel().0);
+    let audio = Arc::new(soundcraft_audio_io::AudioBuffer { sample_rate: 24000, channels: vec![vec![0.4; 2400], vec![0.2; 2400]] });
+    tx.send(Cmd::Audition(Some(audio.clone()), 0.5)).unwrap();
+    let mut block = vec![0.0f32; 2048];
+    state.fill(&mut block, 2);
+    assert!(block.iter().any(|x| *x > 0.05));
+    assert!(block.iter().all(|x| x.is_finite() && x.abs() <= 0.21));
+    assert!(!shared.playing.load(Ordering::Relaxed));
+    assert_eq!(shared.position.load(Ordering::Relaxed), 0);
+    for _ in 0..8 {
+        state.fill(&mut block, 2);
+    }
+    assert!(block.iter().all(|x| *x == 0.0));
+    tx.send(Cmd::Audition(Some(audio), 0.5)).unwrap();
+    state.fill(&mut block, 2);
+    tx.send(Cmd::Audition(None, 0.0)).unwrap();
+    state.fill(&mut block, 2);
+    assert!(block.iter().all(|x| *x == 0.0));
+}
+
+#[test]
+fn live_midi_auditions_while_stopped_without_timeline_notes_and_cleans_up_disabled_monitor() {
+    use soundcraft_model::{ChannelFormat, Insert, Session, TrackKind};
+    let mut session = Session::default();
+    let track = session.add_track(TrackKind::Instrument, ChannelFormat::Stereo, None);
+    let t = session.track_mut(track).unwrap();
+    t.instrument = Some(Insert::new("subtractive_synth"));
+    t.mixer.input_monitor = true;
+    let shared = Arc::new(Shared {
+        position: AtomicI64::new(0),
+        playing: AtomicBool::new(false),
+        speed: AtomicU32::new(1000),
+        meters: Mutex::new(MeterSnapshot::default()),
+    });
+    let (tx, rx) = channel();
+    let mut state = AudioState::new(rx, shared, Arc::new(session.clone()), 48000.0, channel().0);
+    let bus = Arc::new(midi_input::MidiBus::default());
+    bus.active.store(true, Ordering::Release);
+    tx.send(Cmd::MidiInput(Arc::clone(&bus))).unwrap();
+    let mut out = vec![0.0; 1024];
+    state.fill(&mut out, 2);
+    assert!(out.iter().all(|v| *v == 0.0));
+    bus.send(track, [0x91, 60, 110], false);
+    bus.send(track, [0xb1, 64, 127], false);
+    state.fill(&mut out, 2);
+    assert!(out.iter().any(|v| v.abs() > 0.0001), "stopped MIDI monitoring must sound");
+    for _ in 0..3 {
+        state.fill(&mut out, 2);
+        assert!(out.iter().any(|v| v.abs() > 0.0001), "stationary playhead must not reset held notes");
+    }
+    session.track_mut(track).unwrap().mixer.input_monitor = false;
+    tx.send(Cmd::Session(Arc::new(session.clone()), Vec::new())).unwrap();
+    bus.active.store(false, Ordering::Release);
+    bus.panic_track(track);
+    state.fill(&mut out, 2);
+    assert!(out.iter().all(|v| *v == 0.0));
+    session.track_mut(track).unwrap().mixer.input_monitor = true;
+    tx.send(Cmd::Session(Arc::new(session), Vec::new())).unwrap();
+    bus.active.store(true, Ordering::Release);
+    for _ in 0..100 {
+        state.fill(&mut out, 2);
+    }
+    assert!(out.iter().all(|v| v.abs() < 0.000001), "disabled monitor must not resurrect a held/sustained note");
+    assert!(!state.shared.playing.load(Ordering::Acquire));
+    assert_eq!(state.shared.position.load(Ordering::Acquire), 0);
+}
+
+#[test]
 fn short_device_callbacks_render_short_mix_blocks() {
     let s = Arc::new(soundcraft_model::Session::default());
     let shared = Arc::new(Shared {

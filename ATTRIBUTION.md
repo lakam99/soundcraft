@@ -1,5 +1,15 @@
 # Attribution
 
+| Asset | Author | Source | License |
+|---|---|---|---|
+| `assets/sound-lab/forge-panel.png` | SoundCraft contributors | Original AI-assisted worn metal, brass and walnut chassis | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-knob.png` | SoundCraft contributors | Original AI-assisted bakelite and brass knob cap | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-cable.png` | SoundCraft contributors | Original AI-assisted worn rubber cable material | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-plug.png` | SoundCraft contributors | Original AI-assisted aged brass plug and rubber strain relief | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/sound_lab/view.rs` | SoundCraft contributors | Original procedural engraved legends, instrument keys, patch sockets, cables and CRT-style scope | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/sound_lab/cables.rs` | SoundCraft contributors | Original cable geometry, material mapping, lighting and physical drape interactions | MIT OR Apache-2.0 |
+| `crates/dsp/src/hybrid.rs` | SoundCraft contributors | Original Copper Dawn playable synthesis patch | MIT OR Apache-2.0 |
+
 Every asset bundled with or committed to SoundCraft is listed here with its author, source and
 license. `cargo xtask assets` fails CI when a tracked asset file has no row.
 
@@ -12,6 +22,10 @@ All UI icons (tools, transport, track buttons) are drawn procedurally in
 `crates/ui-egui/src/icons.rs` by the SoundCraft contributors (MIT OR Apache-2.0). No UI icon image
 files are used. The app icon (`assets/app-icon/`, a singing nightingale drawn as original SVG by
 the SoundCraft contributors) is listed under Files below.
+
+The effect identity illustrations in `crates/ui-egui/src/panels/plugins/effects.rs`
+are original procedural artwork by the SoundCraft contributors (MIT OR Apache-2.0).
+They use geometric drawings of effect concepts, without third-party artwork.
 
 ## Audio
 
@@ -36,6 +50,9 @@ here. The subset uses default_fonts; the parent face uses monochrome_emoji_fonts
 | `epaint_default_fonts/fonts/emoji-icon-font.ttf` | John Slegers | https://github.com/storytold/egui/blob/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts/emoji-icon-font-mit-license.txt; original https://github.com/jslegers/emoji-icon-font | MIT (complete copyright and permission text in NOTICE) |
 
 ## Files
+
+The effect materials and rotary dial artwork in `crates/ui-egui/src/effect_style.rs`
+are original procedural work by SoundCraft contributors, licensed MIT OR Apache-2.0.
 
 | Path | Author | Source | License |
 |---|---|---|---|

@@ -47,6 +47,45 @@ pub fn draw(painter: &Painter, r: Rect, name: &str, c: Color32) {
             painter.circle_stroke(p(r, 0.42, 0.4), r.width() * 0.2, s);
             painter.line_segment([p(r, 0.56, 0.55), p(r, 0.8, 0.8)], Stroke::new(s.width * 1.6, c));
         }
+        "zoom_in" | "zoom_out" => {
+            painter.circle_stroke(p(r, 0.42, 0.4), r.width() * 0.2, s);
+            painter.line_segment([p(r, 0.56, 0.55), p(r, 0.8, 0.8)], Stroke::new(s.width * 1.6, c));
+            let centre = p(r, 0.42, 0.4);
+            painter.line_segment([centre - vec2(r.width() * 0.1, 0.0), centre + vec2(r.width() * 0.1, 0.0)], s);
+            if name == "zoom_in" {
+                painter.line_segment([centre - vec2(0.0, r.height() * 0.1), centre + vec2(0.0, r.height() * 0.1)], s);
+            }
+        }
+        "smart" => {
+            painter.add(Shape::convex_polygon(
+                vec![p(r, 0.19, 0.16), p(r, 0.19, 0.76), p(r, 0.35, 0.6), p(r, 0.48, 0.85), p(r, 0.6, 0.78), p(r, 0.46, 0.53), p(r, 0.68, 0.53)],
+                c,
+                Stroke::NONE,
+            ));
+            for (a, b) in [((0.78, 0.12), (0.78, 0.38)), ((0.65, 0.25), (0.91, 0.25))] {
+                painter.line_segment([p(r, a.0, a.1), p(r, b.0, b.1)], s);
+            }
+        }
+        "snap" => {
+            painter.add(Shape::line(
+                vec![p(r, 0.22, 0.22), p(r, 0.22, 0.65), p(r, 0.35, 0.8), p(r, 0.65, 0.8), p(r, 0.78, 0.65), p(r, 0.78, 0.22)],
+                Stroke::new(s.width * 2.0, c),
+            ));
+            for x in [0.22, 0.78] {
+                painter.line_segment([p(r, x - 0.09, 0.22), p(r, x + 0.09, 0.22)], s);
+            }
+        }
+        "grid" => {
+            for f in [0.33, 0.67] {
+                painter.line_segment([p(r, f, 0.14), p(r, f, 0.86)], s);
+                painter.line_segment([p(r, 0.14, f), p(r, 0.86, f)], s);
+            }
+        }
+        "more" => {
+            for x in [0.24, 0.5, 0.76] {
+                painter.circle_filled(p(r, x, 0.5), r.width() * 0.045, c);
+            }
+        }
         "zoom_toggle" => {
             for (x, y, dx, dy) in [(0.18, 0.24, 0.16, 0.14), (0.82, 0.24, -0.16, 0.14), (0.18, 0.76, 0.16, -0.14), (0.82, 0.76, -0.16, -0.14)] {
                 painter.add(Shape::line(vec![p(r, x + dx, y), p(r, x, y), p(r, x, y + dy)], s));

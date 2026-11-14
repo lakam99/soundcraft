@@ -423,6 +423,9 @@ pub enum Route {
 /// A plugin instance on an insert slot.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Insert {
+    /// Compiled FORGE design, persisted as validated, editable patch data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hybrid: Option<std::sync::Arc<soundcraft_dsp::hybrid::Patch>>,
     /// Registry id from `soundcraft-dsp` (e.g. `eq7`, `comp`).
     pub plugin: String,
     #[serde(default, deserialize_with = "finite_params")]
@@ -449,8 +452,10 @@ fn yes() -> bool {
 
 impl Insert {
     pub fn new(plugin: impl Into<String>) -> Self {
+        let plugin = plugin.into();
         Insert {
-            plugin: plugin.into(),
+            hybrid: (plugin == soundcraft_dsp::hybrid::ID).then(|| std::sync::Arc::new(soundcraft_dsp::hybrid::Patch::default())),
+            plugin,
             params: BTreeMap::new(),
             bypass: false,
             active: true,

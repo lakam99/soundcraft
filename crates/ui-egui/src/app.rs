@@ -30,6 +30,10 @@ impl SoundApp {
     /// synthetic-input state.
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
+            sound_lab: crate::sound_lab::Runtime::default(),
+            preferences_writer: None,
+            live_midi: crate::live_midi::Runtime::default(),
+            workspace: crate::workspace::Runtime::default(),
             assistant: crate::assistant::Runtime::default(),
             ai_preferences_path: None,
             recent_seen: engine.path.clone(),
@@ -153,9 +157,10 @@ impl SoundApp {
             }
         }
         let light = theme::wants_light(ctx, self.ui.theme);
-        if self.theme_applied != Some(light) || theme::is_light() != light {
-            theme::apply(ctx, light);
-            self.theme_applied = Some(light);
+        let modern = self.ui.modern_workspace;
+        if self.theme_applied != Some((light, modern)) || theme::is_light() != light || theme::is_modern() != modern {
+            theme::apply_workspace(ctx, light, modern);
+            self.theme_applied = Some((light, modern));
         }
         // A logic-only tick while hidden gets no fresh events: `ctx.input` still says what the last
         // completed pass saw. Do not let that stale pointer/keyboard state keep writing automation
@@ -184,13 +189,14 @@ impl SoundApp {
             bounce::step(self, ctx);
             import::step(self, ctx);
             updates_ui::tick(self, ctx);
+            crate::sound_lab::tick(self, ctx);
         }
         if !self.pointer_down {
             if matches!(self.gesture, Some(Gesture::Fader { .. } | Gesture::SendFader { .. })) {
                 self.gesture = None;
             }
             // Keep a running automation pass merged until playback stops.
-            if !self.wants_keyboard && self.touched.is_empty() && self.touched_sends.is_empty() {
+            if !self.wants_keyboard && self.touched.is_empty() && self.touched_sends.is_empty() && !self.live_midi.recording() {
                 self.engine.end_merge();
             }
         }
@@ -198,10 +204,12 @@ impl SoundApp {
         self.watch_input();
         // Stop the old playback before sending a replacement session to the audio thread.
         self.handle_transport(dt);
-        if self.engine.revision != self.last_rev {
+        self.poll_live_midi();
+        if self.engine.revision != self.last_rev || self.sound_lab.audio_dirty {
+            self.sound_lab.audio_dirty = false;
             self.last_rev = self.engine.revision;
             if let Some(p) = &self.player {
-                p.update_session(self.engine.session_arc());
+                p.update_session(self.audible_session());
             }
         }
         self.open_inserted();
@@ -210,7 +218,12 @@ impl SoundApp {
         self.autosave();
         if self.recorder.is_none()
             && !self.recorder_failed
-            && self.engine.session().tracks.iter().any(|t| t.mixer.input_monitor || t.mixer.record_arm)
+            && self
+                .engine
+                .session()
+                .tracks
+                .iter()
+                .any(|t| t.kind == soundcraft_model::TrackKind::Audio && (t.mixer.input_monitor || t.mixer.record_arm))
         {
             self.ensure_input();
         }
@@ -218,7 +231,7 @@ impl SoundApp {
         // egui 0.37 schedules the delay as given (it no longer subtracts the predicted frame time),
         // so ask for the real interval instead of adding that time back.
         let editors = self.player.as_ref().is_some_and(Player::any_editor_open);
-        ctx.request_repaint_after_secs(if editors { 0.03 } else { 1.0 });
+        ctx.request_repaint_after_secs(if editors || self.live_midi.monitored() || self.live_midi.recording() { 0.016 } else { 1.0 });
         crate::control::drain_screenshots(self, ctx);
         if crate::control::screenshots_need_paint(self) {
             // An admitted capture that has not reached a UI pass needs an explicit hidden paint;
@@ -394,7 +407,7 @@ impl SoundApp {
         }
         // Here, not in logic(): a covered or minimized window runs only logic(), with no vsync to pace it.
         if self.meters_live() {
-            let hz = if self.ui.window == MainWindow::Mix { 60 } else { 30 };
+            let hz = if self.ui.window == MainWindow::Mix || self.ui.show_mix { 60 } else { 30 };
             ctx.request_repaint_after(std::time::Duration::from_millis(1000 / hz));
         } else if self.meters.values().any(|m| m.level[0] > 0.0001) {
             ctx.request_repaint_after(std::time::Duration::from_millis(80));

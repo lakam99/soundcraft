@@ -350,7 +350,7 @@ mod tests {
 
     /// Opens a settled New Tracks dialog in a macOS UI harness.
     fn harness() -> Harness<'static, SoundApp> {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         assert!(app.dialogs.open_for_command(&app.engine, "track.new"));
         let mut h = Harness::builder().with_size(vec2(1600.0, 1000.0)).build_ui_state(
             |ui, app: &mut SoundApp| {

@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$BinaryDirectory,
     [Parameter(Mandatory)][string]$ChatPluginDirectory,
-    [string]$Version = '0.17.2'
+    [string]$Version = '0.17.8'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -12,7 +12,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Commit the verified source before packaging' }
 $sourceCommit = & git -C $projectRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify package source' }
 $pluginCommit = & git -C $pluginRoot rev-parse HEAD
-if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne 'cb38ab373dcf7ce3876418e0a0976af8d44c39c2') { throw 'Unexpected shared plugin license source' }
+if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne 'ebffb34d294fb97a42c2c6b64d2616e23ffeb3ea') { throw 'Unexpected shared plugin license source' }
 & git -C $pluginRoot diff --quiet HEAD --
 if ($LASTEXITCODE -ne 0) { throw 'Shared plugin license source must be clean' }
 $releaseRoot = Join-Path $projectRoot "dist/fork-$Version"
@@ -49,7 +49,7 @@ foreach ($document in @('README.md', 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 
     Copy-Item -LiteralPath (Join-Path $projectRoot $document) -Destination $stage
 }
 [IO.Directory]::CreateDirectory((Join-Path $stage 'docs')) | Out-Null
-Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/fork-guide.md') -Destination (Join-Path $stage 'docs')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/fork-guide.md'), (Join-Path $projectRoot 'docs/workspace-ux.md'), (Join-Path $projectRoot 'docs/forge-sound-lab.md') -Destination (Join-Path $stage 'docs')
 $pluginLicenses = Join-Path $stage 'licenses/craft-ai-chat'
 [IO.Directory]::CreateDirectory($pluginLicenses) | Out-Null
 foreach ($document in @('LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'README.md')) {

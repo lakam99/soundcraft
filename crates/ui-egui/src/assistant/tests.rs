@@ -3,7 +3,7 @@ use crate::Services;
 use std::time::{Duration, Instant};
 
 fn app() -> SoundApp {
-    SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default())
+    SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default())
 }
 
 #[test]
@@ -173,6 +173,34 @@ fn deleting_an_input_cannot_retarget_its_highlight_to_another_row() {
 }
 fn reply(text: &str) -> Value {
     json!({"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":text}]}]})
+}
+
+#[test]
+fn assistant_builds_and_refines_a_forge_candidate_with_discoverable_tools() {
+    let mut app = app();
+    app.ui.ai.attach_frames = false;
+    app.run("soundlab.new", json!({})).unwrap();
+    let track = app.engine.session().tracks[0].id;
+    let revision = app.engine.revision;
+    let before = app.engine.session_arc();
+    let mut patch = soundcraft_dsp::hybrid::Patch::default().design().clone();
+    patch.name = "Lantern brass".into();
+    patch.macros[0].name = "Glow".into();
+    *app.assistant.panel.prompt_mut() = "A warm brass that swells into a metallic tail".into();
+    let mut turn = 0;
+    with_panel(&mut app,|panel,host|panel.send_with(host,&egui::Context::default(),move |_|{
+        let call=match turn{0=>Some(("engine.commands",json!({"filter":"soundlab"}))),1=>Some(("engine.execute",json!({"command":"synth.catalog","params":{}}))),2=>Some(("engine.execute",json!({"command":"soundlab.inspect","params":{"track":track.0}}))),3=>Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}}))),4=>{patch.description="Softer attack, more edge; use Glow to open the tone".into();Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}})))},_=>None};turn+=1;
+        if let Some((method,params))=call{Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":format!("forge{turn}"),"name":"soundcraft","arguments":json!({"method":method,"params_json":params.to_string()}).to_string()}]}))}else{Ok(reply("Your **Lantern brass** candidate is ready. Try **Audition**, then adjust **Glow**. Use Patch keeps it as an undoable edit."))}
+    })).unwrap().unwrap();
+    finish(&mut app);
+    assert!(Arc::ptr_eq(&before, &app.engine.session_arc()));
+    let state = app.run("soundlab.inspect", json!({"track":track.0})).unwrap();
+    assert_eq!(state["candidate"]["name"], "Lantern brass");
+    assert!(state["candidate"]["description"].as_str().unwrap().contains("Softer attack"));
+    assert!(app.assistant.panel.transcript().iter().all(|(role, text)| role != "Tool" || !text.contains("params_json")));
+    app.run("soundlab.commit", json!({"track":track.0})).unwrap();
+    app.run("edit.undo", json!({})).unwrap();
+    assert_eq!(app.engine.session(), before.as_ref());
 }
 
 #[test]

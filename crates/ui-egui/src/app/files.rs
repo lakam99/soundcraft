@@ -5,6 +5,9 @@ impl SoundApp {
     /// as bytes). Screenshot requests admitted for the old document must never receive the new
     /// one's pixels, so every replacement path bumps the epoch.
     pub(crate) fn document_replaced(&mut self) {
+        crate::sound_lab::stop(self);
+        self.sound_lab = crate::sound_lab::Runtime::default();
+        self.live_midi.reset();
         self.doc_epoch = self.doc_epoch.wrapping_add(1);
         crate::assistant::document_replaced(self);
         // Note indices and gestures belong to the old session's clips (#443); every document

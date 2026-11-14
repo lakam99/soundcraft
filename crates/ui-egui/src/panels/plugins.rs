@@ -1,8 +1,18 @@
 use super::{Color32, Sense, SoundApp, Stroke, Tokens, Ui, json, mono, pos2, vec2};
+mod effects;
 
 /// Draw plugin windows for instrument and insert slots that still exist, removing closed ones from the list.
 pub(super) fn plugin_windows(app: &mut SoundApp, ctx: &egui::Context) {
     let wins = app.ui.plugin_windows.clone();
+    // One FORGE surface owns the live candidate preview. Other drafts stay available by track.
+    let forge = wins
+        .iter()
+        .rev()
+        .find(|(tid, slot)| {
+            *slot == soundcraft_mix::INSTRUMENT_SLOT
+                && app.engine.session().track(*tid).and_then(|t| t.instrument.as_ref()).is_some_and(|i| i.plugin == soundcraft_dsp::hybrid::ID)
+        })
+        .map(|(tid, _)| *tid);
     let mut keep = Vec::new();
     for (tid, slot) in wins {
         // The instrument slot (an instrument track's instrument) or an insert slot.
@@ -14,113 +24,154 @@ pub(super) fn plugin_windows(app: &mut SoundApp, ctx: &egui::Context) {
             continue;
         };
         let Some(info) = crate::mix_window::plugin_info(&ins.plugin) else { continue };
+        if instrument && ins.plugin == soundcraft_dsp::hybrid::ID {
+            if forge != Some(tid) {
+                continue;
+            }
+            let mut open = true;
+            let shown = egui::Window::new(format!("{tname} · FORGE Hybrid"))
+                .id(egui::Id::unique(("plugin", tid.0, slot)))
+                .open(&mut open)
+                .title_bar(false)
+                .default_width(1040.0)
+                .max_width((ctx.content_rect().width() - 40.0).max(720.0))
+                .min_width(720.0)
+                .default_pos(egui::pos2(30.0, 50.0))
+                .frame(egui::Frame::window(&ctx.global_style()).fill(Color32::from_rgb(20, 28, 27)))
+                .show(ctx, |ui| crate::sound_lab::show(app, ui, tid));
+            if shown.is_some_and(|w| !w.inner.unwrap_or(true)) {
+                open = false;
+            }
+            if open {
+                keep.push((tid, slot));
+            } else {
+                crate::sound_lab::stop(app);
+            }
+            continue;
+        }
+        let modern_effect = app.ui.modern_workspace && !instrument && effects::identity(info.id).is_some();
         let place = if instrument { "instrument".to_string() } else { char::from(b'a'.saturating_add(slot as u8)).to_string() };
         let mut open = true;
-        let shown = egui::Window::new(format!("{tname} · {place} · {}", info.name))
+        let window = egui::Window::new(format!("{tname} · {place} · {}", info.name))
             .id(egui::Id::unique(("plugin", tid.0, slot)))
             .open(&mut open)
-            .default_width(340.0)
-            .default_pos(egui::pos2(ctx.content_rect().width() - 380.0, 120.0))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    // Bypass and presets act on insert slots.
-                    if !instrument {
-                        ui.label(egui::RichText::new(&ins.preset).color(Tokens::current().text_dim));
-                        let label = if ins.bypass { "BYPASSED" } else { "Bypass" };
-                        if ui.button(label).clicked() {
-                            let _ = app.run("mix.insert_bypass", json!({"track": tid.0, "slot": slot}));
-                        }
-                        ui.menu_button("Presets v", |ui| preset_menu(app, ui, tid, slot, info, &ins));
+            .default_width(if modern_effect { 540.0 } else { 340.0 })
+            .default_pos(if modern_effect {
+                egui::pos2((ctx.content_rect().width() - 560.0).max(12.0), 60.0)
+            } else {
+                egui::pos2(ctx.content_rect().width() - 380.0, 120.0)
+            });
+        let window = if modern_effect {
+            window
+                .default_height((ctx.content_rect().height() - 170.0).clamp(240.0, 600.0))
+                .frame(egui::Frame::window(&ctx.global_style()).fill(crate::effect_style::skin(app, info).face()))
+        } else {
+            window
+        };
+        let shown = window.show(ctx, |ui| {
+            if modern_effect {
+                effects::show(app, ui, tid, slot, info, &ins);
+                return;
+            }
+            ui.horizontal(|ui| {
+                // Bypass and presets act on insert slots.
+                if !instrument {
+                    ui.label(egui::RichText::new(&ins.preset).color(Tokens::current().text_dim));
+                    let label = if ins.bypass { "BYPASSED" } else { "Bypass" };
+                    if ui.button(label).clicked() {
+                        let _ = app.run("mix.insert_bypass", json!({"track": tid.0, "slot": slot}));
                     }
-                    if soundcraft_mix::is_third_party(&ins.plugin) {
-                        let open = app.player.as_ref().is_some_and(|p| p.editor_open(tid, slot));
-                        let available = app.player.as_ref().is_some_and(|p| p.has_editor(tid, slot));
-                        let label = if open { "Close Plugin Editor" } else { "Open Plugin Editor" };
-                        let resp = ui.add_enabled(available, egui::Button::new(label));
-                        let resp =
-                            if available { resp } else { resp.on_disabled_hover_text("This plugin has no editor of its own, or it is not loaded") };
-                        if resp.clicked()
-                            && let Some(p) = &app.player
-                        {
-                            if open {
-                                p.close_editor(tid, slot);
-                            } else if let Err(e) = p.open_editor(tid, slot) {
-                                app.ui.status = format!("{}: {e}", info.name);
+                    ui.menu_button("Presets v", |ui| preset_menu(app, ui, tid, slot, info, &ins));
+                }
+                if soundcraft_mix::is_third_party(&ins.plugin) {
+                    let open = app.player.as_ref().is_some_and(|p| p.editor_open(tid, slot));
+                    let available = app.player.as_ref().is_some_and(|p| p.has_editor(tid, slot));
+                    let label = if open { "Close Plugin Editor" } else { "Open Plugin Editor" };
+                    let resp = ui.add_enabled(available, egui::Button::new(label));
+                    let resp =
+                        if available { resp } else { resp.on_disabled_hover_text("This plugin has no editor of its own, or it is not loaded") };
+                    if resp.clicked()
+                        && let Some(p) = &app.player
+                    {
+                        if open {
+                            p.close_editor(tid, slot);
+                        } else if let Err(e) = p.open_editor(tid, slot) {
+                            app.ui.status = format!("{}: {e}", info.name);
+                        }
+                    }
+                }
+            });
+            if instrument && soundcraft_mix::is_third_party(&ins.plugin) {
+                // A hosted instrument keeps its sounds and settings in its own editor.
+                ui.label(egui::RichText::new("Load and edit sounds in the plugin's own editor.").color(Tokens::current().text_dim));
+                return;
+            }
+            if instrument && ins.plugin == crate::sampler_window::SAMPLER {
+                crate::sampler_window::sample_strip(app, ui, tid, &ins);
+                ui.add_space(4.0);
+            }
+            if info.id == "eq_7band" || info.id == "eq_1band" {
+                eq_curve(ui, info.id, &ins);
+            }
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::Grid::new(("pg", tid.0, slot)).num_columns(3).show(ui, |ui| {
+                    for p in info.params {
+                        let v = ins.params.get(p.id).copied().unwrap_or(p.default);
+                        let label = ui.label(p.name);
+                        let mut x = v;
+                        let resp = if !p.choices.is_empty() {
+                            let mut idx = x.round().max(0.0) as usize;
+                            let r = craft_ui::ComboBox::from_id_salt(("pc", tid.0, slot, p.id))
+                                .selected_text(p.choices.get(idx).copied().unwrap_or("?"))
+                                .show_ui(ui, |ui| {
+                                    for (i, c) in p.choices.iter().enumerate() {
+                                        ui.selectable_value(&mut idx, i, *c);
+                                    }
+                                });
+                            x = idx as f32;
+                            r.response
+                        } else {
+                            let mut sl = egui::Slider::new(&mut x, p.min..=p.max).show_value(false);
+                            if instrument && crate::sampler_window::whole_number(&ins.plugin, p.id) {
+                                sl = sl.integer();
+                            }
+                            if p.taper == soundcraft_dsp::Taper::Log && p.min > 0.0 {
+                                sl = sl.logarithmic(true);
+                            }
+                            ui.add(sl)
+                        };
+                        // The grid cell's painted label is not an accesskit name; tie the
+                        // combo box or slider to it so screen readers and label queries find it.
+                        let resp = resp.labelled_by(label.id);
+                        if (x - v).abs() > f32::EPSILON && instrument {
+                            let _ = app.engine.execute_merged(
+                                "mix.instrument_param",
+                                &json!({"track": tid.0, "param": p.id, "value": x}),
+                                &format!("instrument_param:{}:{}", tid.0, p.id),
+                            );
+                        } else if (x - v).abs() > f32::EPSILON {
+                            let _ = app.engine.execute_merged(
+                                "mix.insert_param",
+                                &json!({"track": tid.0, "slot": slot, "param": p.id, "value": x}),
+                                &format!("param:{}:{slot}:{}", tid.0, p.id),
+                            );
+                            if let Some(pl) = &app.player {
+                                // Keep the plugin's own editor in step.
+                                pl.editor_set_param(tid, slot, p.id, x);
                             }
                         }
+                        let _ = resp;
+                        let shown = if instrument {
+                            crate::sampler_window::format_param(&ins.plugin, p, x)
+                        } else {
+                            app.player.as_ref().and_then(|pl| pl.editor_value_text(tid, slot, p.id, x)).unwrap_or_else(|| p.format(x))
+                        };
+                        ui.label(egui::RichText::new(shown).font(mono(11.0)));
+                        ui.end_row();
                     }
-                });
-                if instrument && soundcraft_mix::is_third_party(&ins.plugin) {
-                    // A hosted instrument keeps its sounds and settings in its own editor.
-                    ui.label(egui::RichText::new("Load and edit sounds in the plugin's own editor.").color(Tokens::current().text_dim));
-                    return;
-                }
-                if instrument && ins.plugin == crate::sampler_window::SAMPLER {
-                    crate::sampler_window::sample_strip(app, ui, tid, &ins);
-                    ui.add_space(4.0);
-                }
-                if info.id == "eq_7band" || info.id == "eq_1band" {
-                    eq_curve(ui, info.id, &ins);
-                }
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    egui::Grid::new(("pg", tid.0, slot)).num_columns(3).show(ui, |ui| {
-                        for p in info.params {
-                            let v = ins.params.get(p.id).copied().unwrap_or(p.default);
-                            let label = ui.label(p.name);
-                            let mut x = v;
-                            let resp = if !p.choices.is_empty() {
-                                let mut idx = x.round().max(0.0) as usize;
-                                let r = craft_ui::ComboBox::from_id_salt(("pc", tid.0, slot, p.id))
-                                    .selected_text(p.choices.get(idx).copied().unwrap_or("?"))
-                                    .show_ui(ui, |ui| {
-                                        for (i, c) in p.choices.iter().enumerate() {
-                                            ui.selectable_value(&mut idx, i, *c);
-                                        }
-                                    });
-                                x = idx as f32;
-                                r.response
-                            } else {
-                                let mut sl = egui::Slider::new(&mut x, p.min..=p.max).show_value(false);
-                                if instrument && crate::sampler_window::whole_number(&ins.plugin, p.id) {
-                                    sl = sl.integer();
-                                }
-                                if p.taper == soundcraft_dsp::Taper::Log && p.min > 0.0 {
-                                    sl = sl.logarithmic(true);
-                                }
-                                ui.add(sl)
-                            };
-                            // The grid cell's painted label is not an accesskit name; tie the
-                            // combo box or slider to it so screen readers and label queries find it.
-                            let resp = resp.labelled_by(label.id);
-                            if (x - v).abs() > f32::EPSILON && instrument {
-                                let _ = app.engine.execute_merged(
-                                    "mix.instrument_param",
-                                    &json!({"track": tid.0, "param": p.id, "value": x}),
-                                    &format!("instrument_param:{}:{}", tid.0, p.id),
-                                );
-                            } else if (x - v).abs() > f32::EPSILON {
-                                let _ = app.engine.execute_merged(
-                                    "mix.insert_param",
-                                    &json!({"track": tid.0, "slot": slot, "param": p.id, "value": x}),
-                                    &format!("param:{}:{slot}:{}", tid.0, p.id),
-                                );
-                                if let Some(pl) = &app.player {
-                                    // Keep the plugin's own editor in step.
-                                    pl.editor_set_param(tid, slot, p.id, x);
-                                }
-                            }
-                            let _ = resp;
-                            let shown = if instrument {
-                                crate::sampler_window::format_param(&ins.plugin, p, x)
-                            } else {
-                                app.player.as_ref().and_then(|pl| pl.editor_value_text(tid, slot, p.id, x)).unwrap_or_else(|| p.format(x))
-                            };
-                            ui.label(egui::RichText::new(shown).font(mono(11.0)));
-                            ui.end_row();
-                        }
-                    });
                 });
             });
+        });
         if let Some(w) = shown
             && instrument
             && ins.plugin == crate::sampler_window::SAMPLER

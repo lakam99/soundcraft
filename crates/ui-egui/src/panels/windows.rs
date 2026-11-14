@@ -413,6 +413,7 @@ fn configurations(app: &mut SoundApp, ctx: &egui::Context) {
 pub fn recall_configuration(app: &mut SoundApp, saved: &Value) -> Result<(), String> {
     let mut saved = saved.clone();
     crate::docking::reset_old_layouts(&mut saved);
+    crate::workspace::migrate_legacy(&mut saved)?;
     let mut st = serde_json::from_value::<crate::UiState>(saved).map_err(|error| error.to_string())?;
     crate::docking::validate(&st.docking).and_then(|()| crate::docking::validate_mix(&st.mix_docking))?;
     st.configurations = app.ui.configurations.clone();
@@ -583,6 +584,14 @@ pub fn playback_engine(app: &mut SoundApp, ctx: &egui::Context) {
             ui.label(format!("{sr} Hz{note}"));
             ui.end_row();
         });
+        ui.label(
+            egui::RichText::new("Apply remembers these choices immediately on this machine. Projects do not replace device preferences.")
+                .small()
+                .color(t.text_dim),
+        );
+        for warning in app.audio_configuration_warnings() {
+            ui.label(warning);
+        }
         ui.label(egui::RichText::new("The mix runs in 512-sample blocks; the buffer size sets the device's own latency.").small().color(t.text_dim));
         let mut dc = app.engine.session().edit.delay_compensation;
         if crate::widgets::checkbox(ui, &mut dc, "Delay compensation").changed() {
@@ -642,7 +651,7 @@ pub fn audio_device_command(app: &mut SoundApp, p: &serde_json::Value) -> Result
         json!({"name": pl.device_name, "sample_rate": pl.device_rate, "channels": pl.device_channels, "buffer_size": pl.device_buffer, "silent": pl.silent})
     });
     let input = app.recorder.as_ref().map(|r| json!({"name":r.device_name,"sample_rate":r.sample_rate,"channels":r.channels}));
-    let mut out = json!({"config": app.ui.audio, "device": device, "input_stream":input, "input_paths": app.engine.session().inputs});
+    let mut out = json!({"config": app.ui.audio, "device": device, "input_stream":input, "input_paths": app.engine.session().inputs,"warnings":app.audio_configuration_warnings(),"preferences_persistent":app.preferences_writer.is_some()});
     if p.get("list").and_then(Value::as_bool).unwrap_or(false) {
         out["systems"] = json!(soundcraft_playback::devices::audio_systems());
     }

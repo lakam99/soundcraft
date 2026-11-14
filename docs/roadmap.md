@@ -1,6 +1,12 @@
 # SoundCraft roadmap: milestones and what's next
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** trivial (`setup.playback_engine` applies the device buffer in the desktop app) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+**Fork milestone (2026-11-13):** FORGE Hybrid brings a modular oscillator/sample/filter/drive/
+resonator/envelope/LFO graph, an analog instrument surface with physical patching, AI candidate
+build/refinement and one-edit commit, bounded audition rendering and preserved-source sampler
+derivation. Machine-local audio settings save on Apply and disclose fallback while retaining
+requested devices. Workflow and limits: [FORGE sound lab](forge-sound-lab.md).
+
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 Forward-looking plan. Status and numbers: [`../ROADMAP.md`](../ROADMAP.md) and
 [`target-app-parity.md`](target-app-parity.md); the ranked work list: [`gaps.md`](gaps.md).
@@ -11,7 +17,8 @@ Hours are Opus 5.5 agent-hours.
 1. **Merge or close the open bug-fix PRs** (#123–#134, #146, #148, #75) and fix the rest of the
    correctness backlog (G-04). ≈ 15–25 h.
 2. **Audio interface basics** (G-01): device selection, buffer size, duplex stream, ASIO. ≈ 25–40 h.
-3. **MIDI devices** (G-02): input to armed tracks and instruments, output, thru, clock. ≈ 20–35 h.
+3. **MIDI devices** (G-02): native input/recording verified with a physical Windows keyboard; broaden
+   platform/device verification and finish loop recording, external output, thru and clock. ≈ 20–35 h.
 4. **macOS plugin hosting** (G-05): library-validation entitlement now (#153), then AU editors. ≈ 15–25 h.
 5. **A PR CI that runs `cargo xtask ci`** on Linux, macOS and Windows (G-14). ≈ 5–10 h.
 

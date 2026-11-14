@@ -10,6 +10,37 @@ use soundcraft_engine::catalog;
 
 /// UI-layer commands: (id, label, catalog path or "", shortcut).
 pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
+    ("soundlab.new", "Add FORGE Instrument", "Track > Add FORGE Instrument", None),
+    ("soundlab.open", "FORGE Sound Lab", "Window > FORGE Sound Lab", None),
+    ("soundlab.close", "Close FORGE Instrument", "", None),
+    ("soundlab.inspect", "Inspect FORGE Sound Design", "", None),
+    ("soundlab.cables", "Arrange FORGE Patch Leads", "", None),
+    ("soundlab.preview", "Preview FORGE Patch", "", None),
+    ("soundlab.commit", "Use FORGE Patch", "", None),
+    ("soundlab.discard", "Discard FORGE Candidate", "", None),
+    ("soundlab.render", "Render FORGE Preview", "", None),
+    ("soundlab.audition", "Audition FORGE Sound", "", None),
+    ("soundlab.stop", "Stop FORGE Audition", "", None),
+    ("soundlab.cancel", "Cancel FORGE Rendering", "", None),
+    ("soundlab.to_sampler", "Create Sampler from FORGE", "", None),
+    ("soundlab.to_audio", "Create Audio from FORGE", "", None),
+    ("soundlab.export", "Export FORGE WAV", "", None),
+    ("soundlab.preset_save", "Save FORGE Patch", "", None),
+    ("soundlab.preset_load", "Load FORGE Patch", "", None),
+    ("effects.skin", "Effect Skin", "", None),
+    ("midi.devices", "MIDI Input Devices", "", None),
+    ("midi.refresh", "Refresh MIDI Inputs", "Setup > Refresh MIDI Inputs", None),
+    ("midi.panic", "All MIDI Notes Off", "Track > All MIDI Notes Off", None),
+    ("midi.send", "Play MIDI Message", "", None),
+    ("workspace.modern", "Modern Workspace", "Window > Workspace > Modern", None),
+    ("workspace.classic", "Classic Workspace", "Window > Workspace > Classic", None),
+    ("workspace.inspector", "Track Inspector", "Window > Inspector", None),
+    ("workspace.browser", "Browser", "Window > Browser", None),
+    ("workspace.audioTrack", "Add Audio Track", "Track > Add Audio Track", None),
+    ("workspace.instrumentTrack", "Add Instrument Track", "Track > Add Instrument Track", None),
+    ("workspace.midiPart", "Write MIDI Notes", "Clip > Write MIDI Notes", None),
+    ("workspace.startMidi", "Start MIDI Composition", "Track > Start MIDI Composition", None),
+    ("workspace.audioSetup", "Audio Setup", "Setup > Audio Setup", None),
     ("ai.chat", "AI Chat", "Window > AI Chat", None),
     ("ai.settings", "AI Settings", "", None),
     ("ai.connection", "AI Connection", "", None),
@@ -26,7 +57,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
     ("ui.dock.reset", "Reset Panel Layout", "Window > Reset Panel Layout", None),
     ("window.mix", "Mix", "Window > Mix", Some("Cmd+=")),
     ("window.edit", "Edit", "Window > Edit", Some("Cmd+=")),
-    ("window.toggle_mix_edit", "Toggle Mix/Edit", "", Some("Cmd+=")),
+    ("window.toggle_mix_edit", "Toggle Mix Panel", "", Some("Cmd+=")),
     ("window.mix_separate", "Mix in Separate Window", "", None),
     ("window.transport", "Transport", "Window > Transport", Some("Cmd+1")),
     ("window.big_counter", "Big Counter", "Window > Big Counter", Some("Cmd+3")),
@@ -434,6 +465,10 @@ fn preferences_menu_enabled(app: &SoundApp) -> bool {
 fn checked_state(app: &SoundApp, path: &str, id: Option<&str>) -> bool {
     let e = &app.engine.session().edit;
     match id {
+        Some("workspace.modern") => app.ui.modern_workspace,
+        Some("workspace.classic") => !app.ui.modern_workspace,
+        Some("workspace.inspector") => app.ui.show_inspector,
+        Some("workspace.browser") => app.ui.show_browser,
         Some("ai.chat") => app.ui.show_ai_chat,
         Some("options.loop_playback") => e.loop_playback,
         Some("options.loop_record") => e.loop_record,
@@ -450,7 +485,7 @@ fn checked_state(app: &SoundApp, path: &str, id: Option<&str>) -> bool {
         Some("options.pre_fader_metering") => e.pre_fader_metering,
         Some("view.ruler") => path.rsplit(" > ").next().map(ruler_id).is_some_and(|r| e.rulers.iter().any(|x| x == r)),
         Some("view.main_counter") => path.rsplit(" > ").next().map(ruler_id).is_some_and(|r| e.main_counter.id() == r),
-        Some("window.mix") => app.ui.window == MainWindow::Mix,
+        Some("window.mix") => app.ui.show_mix || app.ui.mix_separate,
         Some("window.edit") => app.ui.window == MainWindow::Edit,
         Some("window.track_list") => app.ui.show_tracks_list,
         Some("window.clip_list_view") | Some("window.clip_list") => app.ui.show_clip_list,
@@ -595,6 +630,12 @@ fn wants_dialog(id: &str) -> bool {
 
 /// Handle UI-layer commands. Returns None when `id` is not a UI command.
 pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
+    if let Some(result) = crate::sound_lab::command(app, id, p) {
+        return Some(result);
+    }
+    if let Some(result) = crate::workspace::command(app, id, p) {
+        return Some(result);
+    }
     if let Some(result) = crate::assistant::command(app, id, p) {
         return Some(result);
     }
@@ -622,12 +663,21 @@ pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<
             json!({})
         }
         "window.mix" => {
-            app.ui.window = MainWindow::Mix;
+            app.ui.show_mix = p.get("value").and_then(Value::as_bool).unwrap_or(true);
+            app.ui.window = MainWindow::Edit;
             app.focus_mix = app.ui.mix_separate;
-            json!({"window": "mix"})
+            if app.ui.show_mix
+                && !app.ui.mix_separate
+                && let Err(error) = crate::docking::command(app, "ui.dock", &json!({"operation":"activate","panel":"mix"}))
+            {
+                return Some(Err(error));
+            }
+            json!({"window": "edit", "value": app.ui.show_mix})
         }
         "window.mix_separate" => {
             let v = toggle(&mut app.ui.mix_separate);
+            app.ui.window = MainWindow::Edit;
+            app.ui.show_mix = true;
             app.focus_mix = app.ui.mix_separate;
             v
         }
@@ -640,9 +690,15 @@ pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<
                 // Both are on screen: bring the Mix window forward instead.
                 app.focus_mix = true;
             } else {
-                app.ui.window = if app.ui.window == MainWindow::Edit { MainWindow::Mix } else { MainWindow::Edit };
+                app.ui.window = MainWindow::Edit;
+                app.ui.show_mix = !app.ui.show_mix;
+                if app.ui.show_mix
+                    && let Err(error) = crate::docking::command(app, "ui.dock", &json!({"operation":"activate","panel":"mix"}))
+                {
+                    return Some(Err(error));
+                }
             }
-            json!({"window": app.ui.window})
+            json!({"window": app.ui.window, "value": app.ui.show_mix})
         }
         "window.transport" => toggle(&mut app.ui.show_transport),
         "window.big_counter" => toggle(&mut app.ui.show_big_counter),
@@ -819,7 +875,11 @@ pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<
                     }
                 }
                 match serde_json::from_value::<crate::UiState>(cur) {
-                    Ok(ns) => {
+                    Ok(mut ns) => {
+                        if ns.window == MainWindow::Mix && !ns.mix_separate {
+                            ns.window = MainWindow::Edit;
+                            ns.show_mix = true;
+                        }
                         if let Err(error) = crate::docking::validate(&ns.docking).and_then(|()| crate::docking::validate_mix(&ns.mix_docking)) {
                             return Some(Err(error));
                         }
@@ -857,7 +917,7 @@ mod tests {
     /// Preferences menu entries follow transport safety and the modal window locks every menu.
     #[test]
     fn preferences_menu_state_tracks_transport_and_modality() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         assert!(item_state(&app, "Setup > Preferences...", Some("setup.preferences")).0);
 
         app.engine.transport.playing = true;
@@ -876,7 +936,7 @@ mod tests {
     /// Re-selecting Preferences through either menu keeps its modal window open.
     #[test]
     fn preferences_menu_always_opens_instead_of_toggling() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         invoke_menu(&mut app, "setup.preferences", "Setup > Preferences...");
         assert!(app.ui.show_preferences);
         invoke_menu(&mut app, "setup.preferences", "Setup > Preferences...");
@@ -886,7 +946,7 @@ mod tests {
     /// Generic UI-state updates clamp and immediately synchronize the engine history limit.
     #[test]
     fn ui_set_synchronizes_undo_levels_immediately() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
 
         let result = app.run("ui.set", json!({"undo_levels": 0})).unwrap();
         assert_eq!(result["ui"]["undo_levels"], 1);
@@ -909,7 +969,7 @@ mod tests {
 
     #[test]
     fn programmatic_dialog_commands_stay_closed_and_the_menu_opens_them() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let err = app.run("ui.new_tracks_dialog", json!({})).unwrap_err();
         assert!(err.contains("track.new"), "{err}");
         let err = app.run("ui.bounce_dialog", json!({})).unwrap_err();
@@ -925,7 +985,7 @@ mod tests {
 
     #[test]
     fn save_asks_for_a_path_until_the_session_has_one() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         invoke_menu(&mut app, "session.save", "File > Save Session");
         assert!(matches!(&app.dialogs.open, Some(crate::dialogs::Dialog::PathPrompt { cmd, .. }) if cmd == "session.save_as"));
         app.dialogs.open = None;
@@ -957,7 +1017,7 @@ mod tests {
 
     #[test]
     fn audiosuite_sci_fi_opens_the_ring_modulator() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         invoke_menu(&mut app, "audiosuite.process", "AudioSuite > Modulation > Sci-Fi");
         assert_eq!(app.ui.audiosuite.as_deref(), Some("ring_mod"));
         let info = soundcraft_dsp::plugin_info("ring_mod").unwrap();
@@ -981,7 +1041,7 @@ mod tests {
         assert_eq!(offline.label, "AudioSuite");
         let dynamics = offline.children.iter().find(|node| node.path == "AudioSuite > Dynamics").unwrap();
         assert_eq!(dynamics.children.iter().filter(|node| node.label == "Compressor/Limiter").count(), 1);
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let command = command_for_path("Event > Beat Detective", &ui_aliases()).unwrap();
         invoke_menu(&mut app, &command, "Event > Beat Detective");
         assert!(app.ui.show_beat_detective);
@@ -1100,7 +1160,7 @@ mod tests {
             }
             None
         }
-        let app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let tree = tree();
         for (path, label) in [
             ("View > Transport > Ableton Link", "Tempo Sync"),

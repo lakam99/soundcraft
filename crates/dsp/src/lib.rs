@@ -14,6 +14,7 @@
 //! Audio is planar `f32`: `io[channel][frame]`.
 
 pub mod biquad;
+pub mod hybrid;
 pub mod meter;
 pub mod offline;
 mod osc;
@@ -193,6 +194,10 @@ pub struct Transport {
 /// of at most the channel count given to `prepare`; extra channels are left untouched.
 /// Instruments replace the buffer contents with their output.
 pub trait Plugin: Send {
+    /// Immutable, precompiled modular instrument graph; no graph compilation in the callback.
+    fn set_hybrid_patch(&mut self, _patch: Arc<hybrid::Patch>) -> bool {
+        false
+    }
     fn info(&self) -> &'static PluginInfo;
     fn prepare(&mut self, sample_rate: f32, max_block: usize, channels: usize);
     /// The plugin renders offline (a bounce: faster or slower than realtime, no deadline) rather
@@ -405,12 +410,12 @@ mod trait_default_tests {
     }
 
     #[test]
-    fn only_the_sampler_takes_samples() {
+    fn only_sample_playing_instruments_take_samples() {
         for info in plugins() {
             let mut p = create(info.id).unwrap();
             let s: Arc<dyn SampleSource> = Arc::new(SampleBuffer { sample_rate: 48_000.0, channels: vec![vec![0.0; 16]] });
-            assert_eq!(p.set_sample(Some(s)), info.id == "sampler", "{}", info.id);
-            assert_eq!(p.set_sample(None), info.id == "sampler", "{}", info.id);
+            assert_eq!(p.set_sample(Some(s)), matches!(info.id, "sampler" | hybrid::ID), "{}", info.id);
+            assert_eq!(p.set_sample(None), matches!(info.id, "sampler" | hybrid::ID), "{}", info.id);
         }
     }
 

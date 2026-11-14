@@ -330,3 +330,9 @@ The full license accompanies this notice as licenses/symphonia-LICENSE.txt.
 Source for these unmodified crates is available from the exact versions pinned
 in Cargo.lock, including https://crates.io/crates/symphonia/0.6.1 and the
 symphonia-* crates at that version. Upstream: https://github.com/pdeljanov/Symphonia.
+
+midir (native MIDI input, unmodified)
+------------------------------------
+midir 0.11.1 is distributed under MIT. Its complete copyright and permission
+notice accompanies this distribution as licenses/midir-LICENSE.txt.
+Source: https://github.com/Boddlnagg/midir and the exact version in Cargo.lock.

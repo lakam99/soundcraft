@@ -22,21 +22,25 @@ pub mod credits;
 pub mod dialogs;
 pub mod docking;
 pub mod edit_window;
+pub mod effect_style;
 pub mod fonts;
 pub mod icons;
 pub mod import;
+pub mod live_midi;
 pub mod menus;
 pub mod mix_window;
 pub mod palette;
 pub mod panels;
 pub mod preferences;
 pub mod shortcuts;
+pub mod sound_lab;
 pub mod theme;
 pub mod toolbar;
 pub mod updates_ui;
 pub mod video_track;
 pub mod waveform;
 pub mod widgets;
+pub mod workspace;
 
 use serde_json::{Value, json};
 use soundcraft_engine::{Engine, TransportRequest};
@@ -77,6 +81,12 @@ pub use state::{DragSource, MainWindow};
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct UiState {
+    /// Modern and Classic retain independent panel arrangements.
+    pub modern_workspace: bool,
+    pub show_inspector: bool,
+    pub show_browser: bool,
+    pub classic_layout: Option<workspace::LayoutSnapshot>,
+    pub modern_layout: Option<workspace::LayoutSnapshot>,
     /// File › Open Recent, newest first (see `recent`).
     pub recent_sessions: Vec<String>,
     pub docking: docking::Workspace,
@@ -96,6 +106,8 @@ pub struct UiState {
     pub show_audio_health: bool,
     pub show_about: bool,
     pub show_midi_editor: bool,
+    /// The docked mixer below the timeline; its placement is saved in `docking`.
+    pub show_mix: bool,
     pub show_universe: bool,
     pub narrow_mix: bool,
     /// Mix window sections: inserts_ae, inserts_fj, sends_ae, sends_fj, io, comments, eq_curve, color.
@@ -106,6 +118,8 @@ pub struct UiState {
     pub track_tint: f32,
     /// Open plugin windows (track, slot).
     pub plugin_windows: Vec<(TrackId, usize)>,
+    /// Per built-in effect material, saved with editor preferences.
+    pub effect_skins: std::collections::BTreeMap<String, effect_style::Skin>,
     /// The send in the Send window (track, slot).
     #[serde(skip)]
     pub send_window: Option<(TrackId, usize)>,
@@ -164,13 +178,18 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         UiState {
+            modern_workspace: true,
+            show_inspector: true,
+            show_browser: true,
+            classic_layout: None,
+            modern_layout: None,
             recent_sessions: Vec::new(),
             docking: docking::edit_default(),
             mix_docking: docking::mix_default(),
             docking_version: docking::LAYOUT_VERSION,
             window: MainWindow::Edit,
-            show_tracks_list: true,
-            show_clip_list: true,
+            show_tracks_list: false,
+            show_clip_list: false,
             show_transport: false,
             show_memory_locations: false,
             show_big_counter: false,
@@ -179,12 +198,14 @@ impl Default for UiState {
             show_audio_health: false,
             show_about: false,
             show_midi_editor: false,
+            show_mix: false,
             show_universe: false,
             narrow_mix: false,
             mix_views: vec!["inserts_ae".into(), "sends_ae".into(), "io".into(), "color".into()],
             edit_views: vec!["color".into()],
             track_tint: 0.5,
             plugin_windows: Vec::new(),
+            effect_skins: std::collections::BTreeMap::new(),
             send_window: None,
             audiosuite: None,
             status: String::new(),
@@ -277,6 +298,11 @@ pub enum Gesture {
 }
 
 pub struct SoundApp {
+    pub sound_lab: sound_lab::Runtime,
+    /// Desktop host's atomic preferences writer. Absent for intentionally ephemeral hosts.
+    pub preferences_writer: Option<Box<dyn Fn(&UiState) -> Result<(), String>>>,
+    pub live_midi: crate::live_midi::Runtime,
+    pub workspace: workspace::Runtime,
     assistant: assistant::Runtime,
     pub ai_preferences_path: Option<std::path::PathBuf>,
     pub engine: Engine,
@@ -409,7 +435,7 @@ pub struct SoundApp {
     /// Whether the system fonts are loaded next to the bundled ones; set before the first frame.
     system_fonts: bool,
     /// The palette last applied to the context (light?), so visuals are set only on a change.
-    theme_applied: Option<bool>,
+    theme_applied: Option<(bool, bool)>,
     /// Last panel host context, used to cancel renderer-owned gestures on explicit replacement.
     pub(crate) docking_context: Option<egui::Context>,
     /// Transport simulation when there is no player (tests, offscreen renders).

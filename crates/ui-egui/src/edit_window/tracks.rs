@@ -74,7 +74,11 @@ pub(super) fn track_row(app: &mut SoundApp, ui: &mut Ui, id: TrackId, row: Rect,
     let main_h = track.height.points();
     let lane = lane_rect(track, row, tl);
     ui.painter().rect_filled(head, 0.0, head_bg);
-    ui.painter().rect_filled(Rect::from_min_size(head.min, vec2(STRIP_W, head.height())), 0.0, rgb(track.color));
+    ui.painter().rect_filled(
+        Rect::from_min_size(head.min, vec2(if crate::theme::is_modern() { 4.0 } else { STRIP_W }, head.height())),
+        0.0,
+        rgb(track.color),
+    );
     ui.painter().line_segment([pos2(head.min.x, row.max.y + 0.5), pos2(tl.max.x, row.max.y + 0.5)], Stroke::new(1.0, t.border));
     ui.painter().hline(head.min.x + STRIP_W..=head.max.x, head.min.y + 0.5, Stroke::new(1.0, t.edge_light));
     track_header(app, ui, track, head, selected, head_bg);

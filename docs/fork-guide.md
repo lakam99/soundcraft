@@ -1,5 +1,42 @@
 # SoundCraft fork guide
 
+## Modern workspace
+
+The default workspace puts Audio track, Instrument track and Import above the
+arrangement, with transport always visible below it. The selected-track
+**Inspector** exposes audio routing, instrument access and channel/effect
+controls; the **Browser** contains project media, instruments and effects.
+
+Use **F2** for the MIDI editor, **F3** for Mix, **F4** for Inspector and **F5** for
+Browser. **Write MIDI** in an empty arrangement creates an instrument and a part
+ready for drawing notes. Audio options offers Mono and Stereo track creation.
+For a MIDI keyboard, add an Instrument track, choose the keyboard and channel in
+the Inspector, enable Monitor, arm it and press Record. Stop finalizes the MIDI
+part; Play auditions it. MIDI-only takes do not open a microphone. Disable Loop
+Record/Playback first. Device loss stops and keeps the take; Reconnect retries the
+input and Silence held notes clears notes/pedal state.
+
+Built-in effects have rotary controls with Shift fine adjustment, keyboard arrows,
+exact numeric entry and reset. Their skin selector changes the material and dial
+style; choices are saved per effect with editor preferences.
+
+**Window → Workspace → Classic** restores the specialist interface. Upgrades keep
+the original panel arrangement there, and each workspace remembers its own
+layout. See [workspace design and workflows](workspace-ux.md).
+
+## Mixer panel
+
+**Window → Mix** opens a resizable, dockable panel below the timeline. The bottom
+**Mix** button and **Ctrl+=** (**Cmd+=** on macOS) toggle it. Closing or hiding the
+panel leaves the timeline open; reopening it restores its saved position. Mix and
+MIDI can share the lower tab group, and Window → Mix brings the mixer tab forward.
+
+At compact heights, **Details** on each channel opens its insert, send, instrument
+and other channel sections. Routing, pan, monitoring, record, solo, mute, meters and
+faders remain on the strip. Enlarge the panel to see full-height channel sections.
+**Mix in Separate Window** remains available for another display; closing that
+window returns the mixer to its panel.
+
 ## Batches and saved history
 
 Bulk requests use batches of up to 64 discovered editor commands per AI tool call,

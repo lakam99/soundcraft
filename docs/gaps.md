@@ -1,6 +1,12 @@
 # Where SoundCraft falls short of Pro Tools
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** trivial (G-01: `setup.playback_engine` applies the device buffer in the desktop app; G-04: Clip Looping crossfade and loop count) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+**Fork update (2026-11-13):** G-08 now includes FORGE Hybrid's bounded modular/hybrid instrument
+and physical patching surface, AI-assisted candidate design, offline audition measurements and
+sampler/audio derivation. This does not close the remaining stock content, fidelity or hosting
+gaps. G-01 device choices now save immediately across restarts, with requested-versus-actual
+fallback feedback. See [FORGE sound lab](forge-sound-lab.md).
+
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 Every known shortfall, one entry each, ranked by how much it stops a Pro Tools user from doing
 real work in SoundCraft. This is the work list: pick from the top. Rows marked **alpha blocker**
@@ -16,7 +22,7 @@ When you close a gap, delete its entry (or shrink it) in the same PR, and bump t
 | # | Gap | Dimension | Doc | Est. (h) |
 |---|---|---|---|---:|
 | G-01 | **Alpha blocker.** No channel routing or duplex low-latency path (device, rate and buffer choice done; ASIO opt-in) | Hardware | [hardware-parity.md](hardware-parity.md) | 15–25 |
-| G-02 | **Alpha blocker.** No MIDI device input or output | Hardware / MIDI | [hardware-parity.md](hardware-parity.md) | 20–35 |
+| G-02 | **Alpha blocker.** External MIDI output, clock/thru, loop recording and cross-platform hardware verification remain | Hardware / MIDI | [hardware-parity.md](hardware-parity.md) | 20–35 |
 | G-03 | **Alpha blocker.** Cannot exchange sessions with Pro Tools (no AAF/OMF, no `.ptx`) | File formats | [file-format-parity.md](file-format-parity.md) | 50–90 |
 | G-04 | Open correctness bugs in features counted as done (~25 issues) | Stability | this file | 25–40 |
 | G-05 | (Entitlement part: alpha blocker for the mix row) Third-party VST3s blocked in the signed macOS build; AU editors missing | Ecosystem | [plugin-parity.md](plugin-parity.md) | 15–25 |
@@ -65,11 +71,12 @@ When you close a gap, delete its entry (or shrink it) in the same PR, and bump t
 
 ### G-02. MIDI devices
 
-- **Missing:** all MIDI hardware I/O. No `midir`/CoreMIDI/WinMM/ALSA sequencer code exists;
-  `setup.midi_input_devices` and `setup.midi_studio` only store names. You cannot record from a
-  keyboard, play a hosted instrument live, drive external synths, or send MIDI clock/MTC.
-  `midi_editor.rs:288` notes audition "needs a live MIDI input path".
-- **Impact:** MIDI production is limited to drawing notes and importing SMF.
+- **Implemented in the fork:** native keyboard input, per-track device/channel routing, stopped
+  instrument audition and checkpointed musical takes with note/controller cleanup. Automated
+  workflow coverage and a physical Windows keyboard monitoring/recording check passed.
+- **Missing:** external MIDI output/thru, MIDI clock/MTC, loop take recording and broad
+  cross-platform/device verification. The legacy MIDI Studio setup still stores names.
+- **Impact:** external hardware production and loop MIDI tracking remain incomplete.
 - **Estimate:** ≈ 20–35 h (device layer, realtime input to armed tracks and instruments with
   timestamps, MIDI record/merge/loop, thru, output tracks, clock out).
 

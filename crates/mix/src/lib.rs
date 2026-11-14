@@ -155,6 +155,49 @@ pub struct MixEngine {
 }
 
 impl MixEngine {
+    /// Cleanup must run even when monitoring was just disabled and no block will render.
+    pub fn silence_live_track(&mut self, track: TrackId) {
+        if let Some(strip) = self.strips.get_mut(&track) {
+            strip.live_midi.clear();
+            if let Some(plugin) = &mut strip.instrument {
+                for channel in 0..16 {
+                    plugin.plugin.midi(0, [0xb0 | channel, 64, 0]);
+                }
+                plugin.plugin.all_notes_off();
+            }
+        }
+    }
+    /// Stage a bounded input message for the next instrument block, after transport resets/chase.
+    pub fn live_midi(&mut self, track: TrackId, message: [u8; 3]) -> bool {
+        let message = if message == [0xff, 0, 0] {
+            message
+        } else {
+            let Some(message) = soundcraft_midi::live::channel_message(&message) else {
+                return false;
+            };
+            message
+        };
+        let Some(strip) = self.strips.get_mut(&track) else {
+            return false;
+        };
+        if strip.live_midi.len() >= 512 {
+            return false;
+        }
+        strip.live_midi.push(message);
+        true
+    }
+    pub fn panic_live_midi(&mut self) {
+        for strip in self.strips.values_mut() {
+            strip.live_midi.clear();
+            if let Some(instrument) = &mut strip.instrument {
+                for channel in 0..16 {
+                    instrument.plugin.midi(0, [0xb0 | channel, 64, 0]);
+                    instrument.plugin.midi(0, [0xb0 | channel, 123, 0]);
+                }
+                instrument.plugin.all_notes_off();
+            }
+        }
+    }
     pub fn new(sample_rate: f32, max_block: usize) -> Self {
         let max_block = max_block.clamp(16, 16_384);
         MixEngine {
@@ -402,7 +445,7 @@ impl MixEngine {
 
     /// Silence what a seek leaves ringing, sync to the session and clear the block's accumulators.
     fn begin_block(&mut self, s: &Session, pos: Samples, frames: usize) {
-        if pos != self.last_end {
+        if pos != self.last_end && !self.monitor_only {
             // Seek: silence held notes and ringing plugins.
             for st in self.strips.values_mut() {
                 if let Some(i) = &mut st.instrument {

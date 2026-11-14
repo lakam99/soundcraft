@@ -7,7 +7,7 @@ use soundcraft_ui_egui::{MainWindow, Services, SoundApp, mix_window};
 
 #[test]
 fn mix_in_a_separate_window_toggles_and_closing_it_returns_to_the_main_window() {
-    let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
     assert!(!app.ui.mix_separate);
     app.run("window.mix_separate", json!({})).unwrap();
     assert!(app.ui.mix_separate);
@@ -27,7 +27,8 @@ fn mix_in_a_separate_window_toggles_and_closing_it_returns_to_the_main_window() 
 
     mix_window::separate_closed(app);
     assert!(!app.ui.mix_separate);
-    assert_eq!(app.ui.window, MainWindow::Mix, "closing the Mix window shows Mix in the main one");
+    assert_eq!(app.ui.window, MainWindow::Edit, "closing the Mix window restores its panel under the timeline");
+    assert!(app.ui.show_mix);
     h.run_steps(3);
 
     let app = h.state_mut();

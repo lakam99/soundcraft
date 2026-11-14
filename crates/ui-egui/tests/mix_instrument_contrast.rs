@@ -89,7 +89,7 @@ fn press_and_release(harness: &mut egui_kittest::Harness<'_, SoundApp>, at: egui
 /// light, dark and system modes, and a plugin change leaves the rest of the session and audio pool intact.
 #[test]
 fn populated_mix_instrument_uses_readable_palette_in_real_frames() {
-    let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
     assert_eq!(app.ui.theme, ThemeMode::Dark);
     // Keep demo audio loaded for the preservation check while isolating the new strips.
     for track in &mut app.engine.session_mut().tracks {
@@ -103,7 +103,8 @@ fn populated_mix_instrument_uses_readable_palette_in_real_frames() {
     // An unassigned instrument is a supported model state; track.new normally supplies a synth.
     let empty = app.engine.session().edit.selected_tracks[0];
     app.engine.session_mut().track_mut(empty).unwrap().instrument = None;
-    app.run("window.mix", json!({})).unwrap();
+    // Exercise the full-height mixer used by the separate window.
+    app.ui.window = soundcraft_ui_egui::MainWindow::Mix;
     app.run("view.mix_section", json!({"section": "minimal"})).unwrap();
     for section in ["instruments", "inserts_ae"] {
         app.run("view.mix_section", json!({"section": section})).unwrap();

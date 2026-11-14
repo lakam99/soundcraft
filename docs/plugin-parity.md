@@ -1,6 +1,13 @@
 # Plugin parity: built-in processors and plugin hosting
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-25 · **Change:** trivial (Auto Pan stereo balance; previously minor: AudioSuite speed ramps (speed_ramp); Auto Pan; Subharmonic; previously minor: Ring Modulator; VST3 host messages: IMessage and IAttributeList; previously trivial: Sampler ping-pong loop phase (#463); previously trivial: mix.instrument sets built-in instrument parameters in params (#265); previously minor: plugin editors on Windows) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+**Fork update (2026-11-13):** `hybrid_synth` (FORGE Hybrid) adds bandlimited/basic, procedural
+wavetable, additive, noise and sample sources; real FM/audio and CV routing; filters, drive,
+resonators, ADSR envelopes and LFOs. Its continuous analog rack has original material graphics,
+physical jacks and textured leads. AI designs/refines isolated candidates before one-edit Store.
+Worker auditions expose real measurements; accepted patches can become separate sampler or
+audio tracks while preserving the synth. See [workflow and limits](forge-sound-lab.md).
+
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 Pro Tools users live in plugins: the bundled set covers everyday mixing, and third-party plugins
 cover the rest. This doc tracks both. Our plugins have our own names and are written from
@@ -21,8 +28,8 @@ scratch (clean-room rule): Avid plugin names are not used here, only categories.
 | Harmonic | lo-fi, rectifier, amp simulation, saturation, tape, subharmonic synthesis | `lofi`, `rectifier`, `saturator`, `subharmonic` (octave-down bass from a lower and an upper band, direct bass, drive characters, HP and LP filters) | Amp and cabinet models, tape; subharmonic MIDI tuning and surround (LFE) version |
 | Pitch and time | pitch shift, varispeed effects, time shift | `pitch_shifter`, `time_shift`; the AudioSuite speed ramp (`speed_ramp`) slows a clip down to a stop or speeds it up from one, fitted to the clip's length or extended to 150 %, with or without a fade. | Formant control, pitch correction |
 | Utility | trim, gain, invert, DC offset, signal generator, dither, time adjuster | `trim`, `gain`, `invert`, `dc_offset_removal`, `signal_generator`, `dither` | Time adjuster, meter/analyzer plugins, noise shaping options |
-| Instruments | several virtual instruments (multi-sampler, piano, drum machine, organ, synths, sample player; Massive X Player added in 2026.4) | `subtractive_synth`, `drum_synth`, `sampler`; `mix.instrument` takes the instrument's parameters in `params` and refuses unknown fields (#265). The sampler's ping-pong loop keeps its phase when a step is wider than the loop (#463). | Piano, organ, wavetable, content library |
-| **Total** | **≈ 80 processors and instruments** (estimate from Avid's bundle documentation) | **27 processors + 3 instruments** | |
+| Instruments | several virtual instruments (multi-sampler, piano, drum machine, organ, synths, sample player; Massive X Player added in 2026.4) | `subtractive_synth`, `drum_synth`, `sampler`, `hybrid_synth`; `mix.instrument` takes the instrument's parameters in `params` and refuses unknown fields (#265). The sampler's ping-pong loop keeps its phase when a step is wider than the loop (#463). | Acoustic piano/organ, imported wavetable banks, content library |
+| **Total** | **≈ 80 processors and instruments** (estimate from Avid's bundle documentation) | **27 processors + 4 instruments** | |
 
 AudioSuite: every catalog AudioSuite leaf maps to one of our processes (`AUDIOSUITE` in
 `crates/ui-egui/src/menus.rs`), so the AudioSuite menu is 100 % present. Depth: no preview,

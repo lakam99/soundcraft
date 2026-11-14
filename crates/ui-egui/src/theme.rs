@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Whether the Light palette is active. Dark is the default (the incumbent is dark-only).
 static LIGHT_THEME: AtomicBool = AtomicBool::new(false);
+static MODERN_THEME: AtomicBool = AtomicBool::new(false);
+mod modern;
 
 /// Unit tests that change or read the process-wide palette must own it until their assertions
 /// finish. The lock is re-entrant per thread, so a test may hold it and still build apps
@@ -384,13 +386,26 @@ impl Tokens {
     };
 
     pub fn current() -> Tokens {
-        if is_light() { Self::LIGHT } else { Self::DARK }
+        if is_modern() {
+            modern_tokens(is_light())
+        } else if is_light() {
+            Self::LIGHT
+        } else {
+            Self::DARK
+        }
     }
 }
 
 /// Whether the Light palette is the active one.
 pub fn is_light() -> bool {
     LIGHT_THEME.load(Ordering::Relaxed)
+}
+
+pub fn is_modern() -> bool {
+    MODERN_THEME.load(Ordering::Relaxed)
+}
+pub fn modern_tokens(light: bool) -> Tokens {
+    if light { modern::LIGHT } else { modern::DARK }
 }
 
 /// Resolve each frame from the integration's current OS appearance, or on Linux the desktop's own
@@ -406,6 +421,10 @@ pub fn wants_light(ctx: &egui::Context, mode: ThemeMode) -> bool {
 /// A track's header and lane backgrounds in the Edit window, tinted with its colour by `tint` (0..1).
 pub fn track_backgrounds(color: [u8; 3], selected: bool, tint: f32) -> (Color32, Color32) {
     let t = Tokens::current();
+    if is_modern() {
+        let lane = if selected { t.playlist_alt } else { t.playlist_bg };
+        return (if selected { t.header_selected } else { t.panel_bg2 }, lane.lerp_to_gamma(rgb(color), tint.clamp(0.0, 1.0) * 0.06));
+    }
     let k = tint.clamp(0.0, 1.0);
     if k <= 0.0 {
         return if selected { (t.header_selected, t.playlist_alt) } else { (t.panel_bg2, t.playlist_bg) };
@@ -419,6 +438,16 @@ pub fn track_backgrounds(color: [u8; 3], selected: bool, tint: f32) -> (Color32,
 
 /// Track colours tinted for clip bodies.
 pub fn clip_colors(rgb: [u8; 3], selected: bool) -> (Color32, Color32, Color32) {
+    if is_modern() {
+        let t = Tokens::current();
+        let color = self::rgb(rgb);
+        let (body, wave) = if is_light() {
+            (color.lerp_to_gamma(Color32::WHITE, if selected { 0.52 } else { 0.72 }), color.lerp_to_gamma(Color32::BLACK, 0.65))
+        } else {
+            (t.playlist_bg.lerp_to_gamma(color, if selected { 0.38 } else { 0.24 }), color.lerp_to_gamma(Color32::WHITE, 0.55))
+        };
+        return (body, body, wave);
+    }
     let [r, g, b] = rgb;
     let shade = |k: f32| Color32::from_rgb((f32::from(r) * k) as u8, (f32::from(g) * k) as u8, (f32::from(b) * k) as u8);
     let tint = |k: f32| {
@@ -452,7 +481,12 @@ pub fn mono(size: f32) -> FontId {
 
 /// Make `light` (or dark) the active palette and apply its visuals. Call only when it changes.
 pub fn apply(ctx: &egui::Context, light: bool) {
+    apply_workspace(ctx, light, false);
+}
+
+pub fn apply_workspace(ctx: &egui::Context, light: bool, modern: bool) {
     LIGHT_THEME.store(light, Ordering::Relaxed);
+    MODERN_THEME.store(modern, Ordering::Relaxed);
     let t = Tokens::current();
     let mut v = if light { egui::Visuals::light() } else { egui::Visuals::dark() };
     v.panel_fill = t.panel_bg;
@@ -467,6 +501,19 @@ pub fn apply(ctx: &egui::Context, light: bool) {
     v.widgets.inactive.fg_stroke.color = t.text;
     v.window_corner_radius = egui::CornerRadius::same(6);
     v.menu_corner_radius = egui::CornerRadius::same(4);
+    if modern {
+        v.selection.bg_fill = t.accent_dark;
+        v.selection.stroke = egui::Stroke::new(1.0, Color32::WHITE);
+        v.widgets.noninteractive.bg_stroke.color = t.border;
+        v.widgets.inactive.bg_stroke = egui::Stroke::NONE;
+        v.widgets.hovered.bg_stroke.color = t.accent;
+        v.widgets.active.bg_stroke.color = t.accent;
+        v.widgets.hovered.fg_stroke.color = t.text;
+        v.widgets.active.fg_stroke.color = t.text;
+        v.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
+        v.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
+        v.widgets.active.corner_radius = egui::CornerRadius::same(6);
+    }
     // Keep receiving native OS appearance changes even when our palette is manual. On macOS,
     // pinning egui's theme also pins the window appearance and hides later OS changes.
     ctx.set_theme(egui::ThemePreference::System);
@@ -493,7 +540,7 @@ mod tests {
         // exclusive against other threads (so a frame cannot flip it mid-test).
         let outer = lock_test_palette();
         let inner = lock_test_palette();
-        let app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let _held = lock_test_palette();
@@ -510,7 +557,7 @@ mod tests {
     #[test]
     fn dark_is_the_default() {
         assert_eq!(ThemeMode::default(), ThemeMode::Dark);
-        assert_eq!(UiState::default().theme, ThemeMode::Dark);
+        assert_eq!(UiState::classic().theme, ThemeMode::Dark);
         // Prefs saved before the setting existed load as Dark.
         let old: UiState = serde_json::from_value(json!({"show_tracks_list": true})).unwrap_or_default();
         assert_eq!(old.theme, ThemeMode::Dark);
@@ -526,7 +573,7 @@ mod tests {
     fn modes_round_trip_through_prefs() {
         for mode in ThemeMode::ALL {
             assert_eq!(ThemeMode::parse(mode.id()), Some(mode));
-            let ui = UiState { theme: mode, ..UiState::default() };
+            let ui = UiState { theme: mode, ..UiState::classic() };
             let back: UiState = serde_json::from_value(serde_json::to_value(&ui).unwrap_or_default()).unwrap_or_default();
             assert_eq!(back.theme, mode);
         }
@@ -536,7 +583,7 @@ mod tests {
 
     #[test]
     fn theme_command_sets_and_reports_the_mode() {
-        let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+        let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
         assert_eq!(app.run("ui.theme", json!({})), Ok(json!({"mode": "dark"})));
         assert_eq!(app.run("ui.theme", json!({"mode": "light"})), Ok(json!({"mode": "light"})));
         assert_eq!(app.ui.theme, ThemeMode::Light);
@@ -566,7 +613,13 @@ mod tests {
             let mut output = ctx.run_ui(egui::RawInput { system_theme, ..Default::default() }, |ui| {
                 let ctx = ui.ctx().clone();
                 app.logic(&ctx);
-                let tokens = if light { Tokens::LIGHT } else { Tokens::DARK };
+                let tokens = if app.ui.modern_workspace {
+                    modern_tokens(light)
+                } else if light {
+                    Tokens::LIGHT
+                } else {
+                    Tokens::DARK
+                };
                 assert_eq!(is_light(), light, "custom palette for {mode:?} with {system_theme:?}");
                 assert_eq!(Tokens::current().panel_bg, tokens.panel_bg);
                 assert_eq!(ctx.options(|options| options.theme_preference), egui::ThemePreference::System);
@@ -591,7 +644,7 @@ mod tests {
         let appearances = [Some(egui::Theme::Light), Some(egui::Theme::Dark), Some(egui::Theme::Light), None];
         for initial in [Some(egui::Theme::Light), Some(egui::Theme::Dark), None] {
             let ctx = egui::Context::default();
-            let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+            let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
             app.ui = serde_json::from_value(json!({"theme": "system"})).unwrap();
             frame(&mut app, &ctx, initial, initial == Some(egui::Theme::Light));
         }
@@ -601,7 +654,7 @@ mod tests {
         let track = engine.session_mut().tracks.first_mut().unwrap();
         track.color = [19, 83, 147];
         track.playlists.iter_mut().flat_map(|playlist| &mut playlist.clips).next().unwrap().color = Some([211, 57, 99]);
-        let mut app = SoundApp::new(engine, None, Services::default());
+        let mut app = SoundApp::new_classic(engine, None, Services::default());
         for mode in [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark] {
             app.run("ui.theme", json!({"mode": mode.id()})).unwrap();
             for appearance in appearances {

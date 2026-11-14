@@ -5,7 +5,7 @@ use serde_json::json;
 use soundcraft_ui_egui::{MainWindow, Services, SoundApp, UiState, docking::Panel};
 
 pub(crate) fn harness(state: Option<UiState>, width: f32, scale: f32) -> Harness<'static, SoundApp> {
-    let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
     app.run("track.new", json!({"name":"Voice"})).unwrap();
     if let Some(state) = state {
         app.ui = state;
@@ -132,7 +132,7 @@ fn docking_renders_edit_and_mix_default_floating_and_redocked() {
     for width in [1000.0, 1400.0] {
         for scale in [1.0, 2.0] {
             for window in [MainWindow::Edit, MainWindow::Mix] {
-                let mut h = harness(Some(UiState { window, ..Default::default() }), width, scale);
+                let mut h = harness(Some(UiState { window, ..UiState::classic() }), width, scale);
                 h.state_mut().engine = soundcraft_engine::demo::demo_engine();
                 for state in ["default", "floating", "redocked"] {
                     if state == "floating" {
@@ -156,7 +156,7 @@ fn docking_renders_edit_and_mix_default_floating_and_redocked() {
 #[test]
 fn reset_is_enabled_and_resolves_in_native_and_in_window_menu_trees() {
     use soundcraft_ui_egui::menus;
-    let mut app = SoundApp::new(soundcraft_engine::Engine::default(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::Engine::default(), None, Services::default());
     let path = "Window > Reset Panel Layout";
     let extra: Vec<_> = menus::UI_COMMANDS.iter().map(|(id, _, path, _)| (*path, *id)).collect();
     assert_eq!(menus::command_for_path(path, &extra).as_deref(), Some("ui.dock.reset"));
@@ -171,7 +171,7 @@ fn reset_is_enabled_and_resolves_in_native_and_in_window_menu_trees() {
 
 #[test]
 fn legacy_preferences_restore_the_theme_and_validate_default_docking() {
-    let mut value = serde_json::to_value(UiState { theme: soundcraft_ui_egui::theme::ThemeMode::Light, ..Default::default() }).unwrap();
+    let mut value = serde_json::to_value(UiState { theme: soundcraft_ui_egui::theme::ThemeMode::Light, ..UiState::classic() }).unwrap();
     let object = value.as_object_mut().unwrap();
     object.remove("docking");
     object.remove("mix_docking");
@@ -199,7 +199,7 @@ fn a_floating_window_saved_in_the_one_group_shape_keeps_it_when_written_back() {
     use craft_ui::docking::Node;
     // A floating window as one `{panels, active, rect}` group, as releases before the shared
     // docking model wrote it, beside the dock layout.
-    let mut settings = serde_json::to_value(UiState { show_midi_editor: true, ..Default::default() }).unwrap();
+    let mut settings = serde_json::to_value(UiState { show_midi_editor: true, ..UiState::classic() }).unwrap();
     settings["docking"]["layout"]["floating"] = json!([{"panels": ["memory", "history"], "active": 1, "rect": [300.0, 120.0, 420.0, 360.0]}]);
     let state: UiState = serde_json::from_value(settings).unwrap();
     soundcraft_ui_egui::docking::validate(&state.docking).unwrap();
@@ -259,7 +259,7 @@ fn malformed_dock_operations_name_the_field() {
 fn panels_hidden_one_by_one_reopen_into_their_recorded_window() {
     use craft_ui::docking::{Action, Node, Permissions};
     let allow = |_: &Panel| Permissions::default();
-    let mut state = UiState::default();
+    let mut state = UiState::classic();
     state.docking.layout.floating.retain(|window| !window.contains(&Panel::History));
     let window = state.docking.layout.floating.iter_mut().find(|window| window.contains(&Panel::Memory)).unwrap();
     let rect = window.rect;

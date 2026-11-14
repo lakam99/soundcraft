@@ -1,0 +1,8 @@
+asset:        forge-cable.png
+title:        Original worn rubber patch cable material
+author:       SoundCraft contributors
+source:       original work
+license:      MIT OR Apache-2.0
+license-file: ../../LICENSE-MIT
+added:        2026-11-13 by SoundCraft contributors
+notes:        Original AI-assisted transparent cable material wrapped onto interactive curved meshes. No third-party product artwork used.

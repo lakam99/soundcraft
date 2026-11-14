@@ -62,6 +62,28 @@ fn stored_instrument_params_reach_the_plugin() {
 }
 
 #[test]
+fn forge_stored_module_graph_reaches_the_midi_mix_renderer() {
+    use soundcraft_dsp::hybrid::{ID, Patch, Route};
+    let mut session = synth_session(-6.0);
+    let mut design = Patch::starter().design().clone();
+    design.modules.retain(|m| m.id == "osc_a" || m.id == "out");
+    design.modulation.clear();
+    design.routes = vec![Route { from: "osc_a".into(), to: "out".into(), gain: 1.0 }];
+    let oscillator = design.modules.iter_mut().find(|m| m.id == "osc_a").unwrap();
+    oscillator.params.insert("shape".into(), 0.0);
+    oscillator.params.insert("pitch".into(), 24.0);
+    let mut insert = Insert::new(ID);
+    insert.hybrid = Some(Arc::new(Patch::compile(design).unwrap()));
+    session.tracks[0].instrument = Some(insert);
+    let audio = render_range(&session, Range::new(0, 12000), 512);
+    let held = &audio[0][6000..];
+    assert!(held.iter().any(|v| v.abs() > 0.01));
+    let crossings = held.windows(2).filter(|s| s[0] <= 0.0 && s[1] > 0.0).count();
+    let hz = crossings as f32 * session.sample_rate.hz() as f32 / held.len() as f32;
+    assert!((hz - 1046.5).abs() < 12.0, "The stored +24-semitone graph must reach playback, not the factory starter: {hz} Hz");
+}
+
+#[test]
 fn insert_slot_a_automation_does_not_drive_the_instrument() {
     let mut s = synth_session(-6.0);
     let reference = render_range(&s, Range::new(0, 12_000), 512);

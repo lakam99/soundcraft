@@ -47,7 +47,7 @@ fn bypassed(h: &Harness<'_, SoundApp>, slot: usize) -> bool {
 }
 
 fn harness(track: &str, height: &str, view: &str) -> (Harness<'static, SoundApp>, TrackId, [f32; 4]) {
-    let mut app = SoundApp::new(soundcraft_engine::demo::demo_engine(), None, Services::default());
+    let mut app = SoundApp::new_classic(soundcraft_engine::demo::demo_engine(), None, Services::default());
     app.run(view, json!({})).unwrap();
     app.run("track.height", json!({"tracks": [track], "height": height})).unwrap();
     let id = app.engine.session().track_by_name(track).unwrap().id;
@@ -83,7 +83,8 @@ fn header_keys_freeze_silence_and_show_automation() {
     assert_eq!(kick(&h).view, "volume");
 
     click(&mut h, at(HEADER_W + 81.5, 29.5));
-    assert_eq!(h.state().ui.window, MainWindow::Mix);
+    assert_eq!(h.state().ui.window, MainWindow::Edit);
+    assert!(h.state().ui.show_mix);
 }
 
 /// From the Edit window's insert column, clicking a plugin opens it, Cmd-click bypasses it, right-click changes or

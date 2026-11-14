@@ -3,6 +3,14 @@
 use crate::{AutoParam, AutomationLane, ChannelFormat, Clip, ClipId, Mixer, TrackId};
 use soundcraft_time::{Range, Samples};
 
+/// Opaque backend device id, with optional 1-based MIDI channel filtering.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MidiInputRoute {
+    pub device: Option<String>,
+    pub device_name: Option<String>,
+    pub channel: Option<u8>,
+}
+
 /// Track types (Track › New).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
 pub enum TrackKind {
@@ -300,6 +308,9 @@ pub struct Track {
     /// Instrument plugin (instrument tracks) — registry id.
     #[serde(default)]
     pub instrument: Option<crate::Insert>,
+    /// Live keyboard routing. A missing device is never replaced by another named device.
+    #[serde(default)]
+    pub midi_input: MidiInputRoute,
     /// Ticks (musical) or samples timebase for clips.
     #[serde(default)]
     pub ticks_timebase: bool,
@@ -351,6 +362,7 @@ impl Track {
             folder: None,
             folder_open: true,
             instrument: None,
+            midi_input: MidiInputRoute::default(),
             ticks_timebase: kind.is_midi(),
             elastic: None,
             pinned: false,

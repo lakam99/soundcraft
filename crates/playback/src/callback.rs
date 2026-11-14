@@ -63,6 +63,9 @@ pub(crate) fn guarded_block(fault: &Fault, shared: &Shared, out: &mut [f32], fil
 
 /// State owned by the audio callback.
 pub(crate) struct AudioState {
+    audition: Option<Arc<soundcraft_audio_io::AudioBuffer>>,
+    audition_at: f64,
+    audition_gain: f32,
     rx: Receiver<Cmd>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) session: Arc<Session>,
@@ -80,6 +83,7 @@ pub(crate) struct AudioState {
     pub(crate) device_rate: f64,
     input: Option<Arc<record::InputRing>>,
     recording: bool,
+    midi_input: Option<Arc<super::midi_input::MidiBus>>,
     /// Retired plugin instances go back to the UI thread to be dropped there.
     garbage: Sender<Vec<Box<dyn Plugin>>>,
     old_sessions: Option<SyncSender<Arc<Session>>>,
@@ -108,6 +112,9 @@ impl AudioState {
         let sr = session.sample_rate.as_f64() as f32;
         let nch = main_channels(&session);
         AudioState {
+            audition: None,
+            audition_at: 0.0,
+            audition_gain: 0.0,
             garbage,
             old_sessions: None,
             fold: fold_gains(&session),
@@ -125,6 +132,7 @@ impl AudioState {
             device_rate,
             input: None,
             recording: false,
+            midi_input: None,
             unsent: MeterSnapshot::default(),
             forget_shared: Vec::new(),
         }
@@ -134,7 +142,13 @@ impl AudioState {
         let mut changed = false;
         while let Ok(c) = self.rx.try_recv() {
             match c {
+                Cmd::Audition(audio, gain) => {
+                    self.audition = audio;
+                    self.audition_at = 0.0;
+                    self.audition_gain = gain;
+                }
                 Cmd::Input(r) => self.input = Some(r),
+                Cmd::MidiInput(bus) => self.midi_input = Some(bus),
                 Cmd::Forget(gone) => {
                     self.unsent.forget(&gone);
                     if self.forget_shared.is_empty() {
@@ -241,6 +255,9 @@ impl AudioState {
         }
         self.mix.monitor_only = !self.playing;
         self.mix.recording = self.recording;
+        if let Some(bus) = &self.midi_input {
+            bus.clock(self.pos, self.session.sample_rate.hz(), self.playing);
+        }
         self.mix.render(&self.session, self.pos, n, &mut self.pending);
         self.send_garbage();
         self.pending_len = n;
@@ -275,8 +292,36 @@ impl AudioState {
     /// Fill an interleaved device buffer.
     pub(crate) fn fill(&mut self, out: &mut [f32], channels: usize) {
         self.drain();
+        if let Some(bus) = &self.midi_input {
+            if bus.take_panic() {
+                self.mix.panic_live_midi();
+            }
+            for _ in 0..super::midi_input::MIDI_QUEUE_CAPACITY {
+                let Some(packet) = bus.pop_audio() else {
+                    break;
+                };
+                if !bus.current(&packet) {
+                    continue;
+                }
+                if packet.message == [0xff, 0, 0] {
+                    self.mix.silence_live_track(packet.track);
+                    continue;
+                }
+                let release = packet.message[0] & 0xf0 == 0x80;
+                if (release
+                    || self.session.track(packet.track).is_some_and(|track| !track.inactive && (track.mixer.input_monitor || track.mixer.record_arm)))
+                    && !self.mix.live_midi(packet.track, packet.message)
+                {
+                    self.mix.panic_live_midi();
+                    bus.lost.fetch_add(1, Ordering::Relaxed);
+                    break;
+                }
+            }
+        }
         let channels = channels.max(1);
-        let monitoring = self.input.is_some() && self.session.tracks.iter().any(|t| t.mixer.input_monitor || t.mixer.record_arm);
+        let monitoring = (self.input.is_some()
+            && self.session.tracks.iter().any(|t| t.kind == soundcraft_model::TrackKind::Audio && (t.mixer.input_monitor || t.mixer.record_arm)))
+            || self.midi_input.as_ref().is_some_and(|bus| bus.active.load(Ordering::Acquire));
         if !self.playing && !monitoring {
             out.iter_mut().for_each(|x| *x = 0.0);
             self.unsent.silence();
@@ -284,6 +329,7 @@ impl AudioState {
             if let Ok(mut m) = self.shared.meters.try_lock() {
                 m.silence();
             }
+            self.fill_audition(out, channels);
             return;
         }
         let speed = f64::from(self.shared.speed.load(Ordering::Relaxed)) / 1000.0;
@@ -314,6 +360,37 @@ impl AudioState {
             };
             write_frame(frame, channels, nch, sounding, &self.fold, sample);
             self.read += step;
+        }
+        self.fill_audition(out, channels);
+    }
+    fn fill_audition(&mut self, out: &mut [f32], channels: usize) {
+        let Some(audio) = &self.audition else {
+            return;
+        };
+        let length = audio.frames();
+        let step = f64::from(audio.sample_rate) / self.device_rate.max(1.0);
+        for frame in out.chunks_mut(channels.max(1)) {
+            let index = self.audition_at as usize;
+            if index >= length {
+                break;
+            }
+            let fraction = (self.audition_at - index as f64) as f32;
+            let ramp = (self.audition_at as f32 / (audio.sample_rate as f32 * 0.005)).min(1.0)
+                * ((length as f64 - self.audition_at) as f32 / (audio.sample_rate as f32 * 0.01)).min(1.0);
+            let sample = |c: usize| {
+                let a = audio.channels.get(c).and_then(|v| v.get(index)).copied().unwrap_or(0.0);
+                let b = audio.channels.get(c).and_then(|v| v.get(index.saturating_add(1))).copied().unwrap_or(a);
+                (a + (b - a) * fraction) * self.audition_gain * ramp
+            };
+            let stereo = [sample(0), sample(1)];
+            for (ch, value) in frame.iter_mut().enumerate() {
+                let extra = if channels == 1 { (stereo[0] + stereo[1]) * 0.5 } else { stereo.get(ch).copied().unwrap_or(0.0) };
+                *value = out_sample(*value + extra);
+            }
+            self.audition_at += step;
+        }
+        if self.audition_at >= length as f64 {
+            self.audition = None;
         }
     }
 }

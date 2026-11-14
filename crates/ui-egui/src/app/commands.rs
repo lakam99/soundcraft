@@ -3,6 +3,30 @@ use super::{SoundApp, Value, bounce, menus};
 impl SoundApp {
     /// Run a command; errors go to the status line. Returns the result.
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        if let Some(result) = crate::effect_style::command(self, id, &params) {
+            return result;
+        }
+        if self.live_midi.recording()
+            && matches!(
+                id,
+                "midi.input"
+                    | "mix.instrument"
+                    | "edit.undo"
+                    | "edit.redo"
+                    | "session.new"
+                    | "session.open"
+                    | "session.close"
+                    | "session.revert"
+                    | "transport.locate"
+                    | "transport.rtz"
+                    | "transport.play_from"
+            )
+        {
+            return Err("Stop MIDI recording before changing routing, instruments, projects, position or undo history".into());
+        }
+        if let Some(result) = crate::live_midi::command(self, id, &params) {
+            return result;
+        }
         if matches!(id, "session.new" | "session.open" | "session.close" | "session.revert") && bounce::refuses_session_switch(self) {
             return Err(self.ui.status.clone());
         }
