@@ -63,6 +63,9 @@ pub(crate) fn guarded_block(fault: &Fault, shared: &Shared, out: &mut [f32], fil
 
 /// State owned by the audio callback.
 pub(crate) struct AudioState {
+    audition: Option<Arc<soundcraft_audio_io::AudioBuffer>>,
+    audition_at: f64,
+    audition_gain: f32,
     rx: Receiver<Cmd>,
     pub(crate) shared: Arc<Shared>,
     pub(crate) session: Arc<Session>,
@@ -109,6 +112,9 @@ impl AudioState {
         let sr = session.sample_rate.as_f64() as f32;
         let nch = main_channels(&session);
         AudioState {
+            audition: None,
+            audition_at: 0.0,
+            audition_gain: 0.0,
             garbage,
             old_sessions: None,
             fold: fold_gains(&session),
@@ -136,6 +142,11 @@ impl AudioState {
         let mut changed = false;
         while let Ok(c) = self.rx.try_recv() {
             match c {
+                Cmd::Audition(audio, gain) => {
+                    self.audition = audio;
+                    self.audition_at = 0.0;
+                    self.audition_gain = gain;
+                }
                 Cmd::Input(r) => self.input = Some(r),
                 Cmd::MidiInput(bus) => self.midi_input = Some(bus),
                 Cmd::Forget(gone) => {
@@ -318,6 +329,7 @@ impl AudioState {
             if let Ok(mut m) = self.shared.meters.try_lock() {
                 m.silence();
             }
+            self.fill_audition(out, channels);
             return;
         }
         let speed = f64::from(self.shared.speed.load(Ordering::Relaxed)) / 1000.0;
@@ -348,6 +360,37 @@ impl AudioState {
             };
             write_frame(frame, channels, nch, sounding, &self.fold, sample);
             self.read += step;
+        }
+        self.fill_audition(out, channels);
+    }
+    fn fill_audition(&mut self, out: &mut [f32], channels: usize) {
+        let Some(audio) = &self.audition else {
+            return;
+        };
+        let length = audio.frames();
+        let step = f64::from(audio.sample_rate) / self.device_rate.max(1.0);
+        for frame in out.chunks_mut(channels.max(1)) {
+            let index = self.audition_at as usize;
+            if index >= length {
+                break;
+            }
+            let fraction = (self.audition_at - index as f64) as f32;
+            let ramp = (self.audition_at as f32 / (audio.sample_rate as f32 * 0.005)).min(1.0)
+                * ((length as f64 - self.audition_at) as f32 / (audio.sample_rate as f32 * 0.01)).min(1.0);
+            let sample = |c: usize| {
+                let a = audio.channels.get(c).and_then(|v| v.get(index)).copied().unwrap_or(0.0);
+                let b = audio.channels.get(c).and_then(|v| v.get(index.saturating_add(1))).copied().unwrap_or(a);
+                (a + (b - a) * fraction) * self.audition_gain * ramp
+            };
+            let stereo = [sample(0), sample(1)];
+            for (ch, value) in frame.iter_mut().enumerate() {
+                let extra = if channels == 1 { (stereo[0] + stereo[1]) * 0.5 } else { stereo.get(ch).copied().unwrap_or(0.0) };
+                *value = out_sample(*value + extra);
+            }
+            self.audition_at += step;
+        }
+        if self.audition_at >= length as f64 {
+            self.audition = None;
         }
     }
 }

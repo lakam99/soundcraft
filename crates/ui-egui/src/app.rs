@@ -30,6 +30,8 @@ impl SoundApp {
     /// synthetic-input state.
     pub fn new(engine: Engine, player: Option<Player>, services: Services) -> Self {
         SoundApp {
+            sound_lab: crate::sound_lab::Runtime::default(),
+            preferences_writer: None,
             live_midi: crate::live_midi::Runtime::default(),
             workspace: crate::workspace::Runtime::default(),
             assistant: crate::assistant::Runtime::default(),
@@ -187,6 +189,7 @@ impl SoundApp {
             bounce::step(self, ctx);
             import::step(self, ctx);
             updates_ui::tick(self, ctx);
+            crate::sound_lab::tick(self, ctx);
         }
         if !self.pointer_down {
             if matches!(self.gesture, Some(Gesture::Fader { .. } | Gesture::SendFader { .. })) {
@@ -202,10 +205,11 @@ impl SoundApp {
         // Stop the old playback before sending a replacement session to the audio thread.
         self.handle_transport(dt);
         self.poll_live_midi();
-        if self.engine.revision != self.last_rev {
+        if self.engine.revision != self.last_rev || self.sound_lab.audio_dirty {
+            self.sound_lab.audio_dirty = false;
             self.last_rev = self.engine.revision;
             if let Some(p) = &self.player {
-                p.update_session(self.engine.session_arc());
+                p.update_session(self.audible_session());
             }
         }
         self.open_inserted();

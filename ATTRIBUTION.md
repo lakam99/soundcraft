@@ -1,5 +1,15 @@
 # Attribution
 
+| Asset | Author | Source | License |
+|---|---|---|---|
+| `assets/sound-lab/forge-panel.png` | SoundCraft contributors | Original AI-assisted worn metal, brass and walnut chassis | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-knob.png` | SoundCraft contributors | Original AI-assisted bakelite and brass knob cap | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-cable.png` | SoundCraft contributors | Original AI-assisted worn rubber cable material | MIT OR Apache-2.0 |
+| `assets/sound-lab/forge-plug.png` | SoundCraft contributors | Original AI-assisted aged brass plug and rubber strain relief | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/sound_lab/view.rs` | SoundCraft contributors | Original procedural engraved legends, instrument keys, patch sockets, cables and CRT-style scope | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/sound_lab/cables.rs` | SoundCraft contributors | Original cable geometry, material mapping, lighting and physical drape interactions | MIT OR Apache-2.0 |
+| `crates/dsp/src/hybrid.rs` | SoundCraft contributors | Original Copper Dawn playable synthesis patch | MIT OR Apache-2.0 |
+
 Every asset bundled with or committed to SoundCraft is listed here with its author, source and
 license. `cargo xtask assets` fails CI when a tracked asset file has no row.
 

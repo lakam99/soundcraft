@@ -31,7 +31,7 @@ impl SoundApp {
 
     fn start_play(&mut self, from: Samples, end: Option<Samples>, looped: Option<Range>) {
         if let Some(p) = &self.player {
-            p.update_session(self.engine.session_arc());
+            p.update_session(self.audible_session());
             p.play(from, end, looped);
         } else {
             self.sim = Some((from, end, looped));
@@ -91,6 +91,10 @@ impl SoundApp {
     }
 
     fn start_recording(&mut self) {
+        if self.sound_lab.has_active_candidate() {
+            self.ui.status = "Press STORE or REVERT in FORGE before recording.".into();
+            return;
+        }
         let armed = self.engine.session().tracks.iter().any(|t| t.mixer.record_arm);
         if !armed {
             let why = if self.engine.session().tracks.is_empty() {

@@ -1,8 +1,17 @@
 # SoundCraft roadmap
 
+## Fork additions — 2026-11-13
+
+FORGE Hybrid adds a bounded modular synthesis engine, an original worn hardware-style rack with
+material knobs, detented selectors and textured patch leads, AI-built preview candidates,
+undoable patch commits, finite worker-rendered auditions, and separate sampler/audio derivation.
+Audio device requests save immediately in machine-local preferences and remain visible when a
+device falls back. See [the FORGE workflow](docs/forge-sound-lab.md). These additions do not imply
+completion of the upstream parity estimates below.
+
 **Stage: pre-alpha** · next: alpha, ~5% and ~110–180 h away (the alpha gate's three failing workflows)
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-13 · **Change:** trivial (Cancel Zoom Toggle, side panels in dock columns, Auto Pan stereo balance, Clip List Auto Rename, Strip Silence rectangles, Strip Silence Rename, Strip Silence Extract and Separate, Clip Looping dialog, AudioSuite Vari-Fi speed ramps, Auto Pan plugin, Subharmonic plugin, Ring Modulator plugin, Float32 file headroom) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 SoundCraft is a clean-room, pure-Rust digital audio workstation that aims at full parity with
 Avid Pro Tools, and then beyond it: faster, open, scriptable and agent-controllable. This page is

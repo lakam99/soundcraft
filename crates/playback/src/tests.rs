@@ -298,6 +298,35 @@ fn audio_state_plays_and_stops_at_end() {
 }
 
 #[test]
+fn forge_audition_is_finite_resampled_stoppable_and_does_not_start_transport() {
+    let shared = Arc::new(Shared {
+        position: AtomicI64::new(0),
+        playing: AtomicBool::new(false),
+        speed: AtomicU32::new(1000),
+        meters: Mutex::new(MeterSnapshot::default()),
+    });
+    let (tx, rx) = channel();
+    let mut state = AudioState::new(rx, shared.clone(), Arc::new(Session::default()), 48000.0, channel().0);
+    let audio = Arc::new(soundcraft_audio_io::AudioBuffer { sample_rate: 24000, channels: vec![vec![0.4; 2400], vec![0.2; 2400]] });
+    tx.send(Cmd::Audition(Some(audio.clone()), 0.5)).unwrap();
+    let mut block = vec![0.0f32; 2048];
+    state.fill(&mut block, 2);
+    assert!(block.iter().any(|x| *x > 0.05));
+    assert!(block.iter().all(|x| x.is_finite() && x.abs() <= 0.21));
+    assert!(!shared.playing.load(Ordering::Relaxed));
+    assert_eq!(shared.position.load(Ordering::Relaxed), 0);
+    for _ in 0..8 {
+        state.fill(&mut block, 2);
+    }
+    assert!(block.iter().all(|x| *x == 0.0));
+    tx.send(Cmd::Audition(Some(audio), 0.5)).unwrap();
+    state.fill(&mut block, 2);
+    tx.send(Cmd::Audition(None, 0.0)).unwrap();
+    state.fill(&mut block, 2);
+    assert!(block.iter().all(|x| *x == 0.0));
+}
+
+#[test]
 fn live_midi_auditions_while_stopped_without_timeline_notes_and_cleans_up_disabled_monitor() {
     use soundcraft_model::{ChannelFormat, Insert, Session, TrackKind};
     let mut session = Session::default();

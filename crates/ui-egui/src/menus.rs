@@ -10,6 +10,23 @@ use soundcraft_engine::catalog;
 
 /// UI-layer commands: (id, label, catalog path or "", shortcut).
 pub const UI_COMMANDS: &[(&str, &str, &str, Option<&str>)] = &[
+    ("soundlab.new", "Add FORGE Instrument", "Track > Add FORGE Instrument", None),
+    ("soundlab.open", "FORGE Sound Lab", "Window > FORGE Sound Lab", None),
+    ("soundlab.close", "Close FORGE Instrument", "", None),
+    ("soundlab.inspect", "Inspect FORGE Sound Design", "", None),
+    ("soundlab.cables", "Arrange FORGE Patch Leads", "", None),
+    ("soundlab.preview", "Preview FORGE Patch", "", None),
+    ("soundlab.commit", "Use FORGE Patch", "", None),
+    ("soundlab.discard", "Discard FORGE Candidate", "", None),
+    ("soundlab.render", "Render FORGE Preview", "", None),
+    ("soundlab.audition", "Audition FORGE Sound", "", None),
+    ("soundlab.stop", "Stop FORGE Audition", "", None),
+    ("soundlab.cancel", "Cancel FORGE Rendering", "", None),
+    ("soundlab.to_sampler", "Create Sampler from FORGE", "", None),
+    ("soundlab.to_audio", "Create Audio from FORGE", "", None),
+    ("soundlab.export", "Export FORGE WAV", "", None),
+    ("soundlab.preset_save", "Save FORGE Patch", "", None),
+    ("soundlab.preset_load", "Load FORGE Patch", "", None),
     ("effects.skin", "Effect Skin", "", None),
     ("midi.devices", "MIDI Input Devices", "", None),
     ("midi.refresh", "Refresh MIDI Inputs", "Setup > Refresh MIDI Inputs", None),
@@ -613,6 +630,9 @@ fn wants_dialog(id: &str) -> bool {
 
 /// Handle UI-layer commands. Returns None when `id` is not a UI command.
 pub fn run_ui_command(app: &mut SoundApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
+    if let Some(result) = crate::sound_lab::command(app, id, p) {
+        return Some(result);
+    }
     if let Some(result) = crate::workspace::command(app, id, p) {
         return Some(result);
     }

@@ -256,6 +256,9 @@ fn main() -> eframe::Result {
             let mut app = SoundApp::new(engine, player, services());
             app.enable_midi_input(std::env::var_os("SOUNDCRAFT_DISABLE_MIDI_INPUT").is_none());
             app.ai_preferences_path = env.prefs_enabled().then(|| prefs_path(&env)).flatten();
+            if let Some(path) = app.ai_preferences_path.clone() {
+                app.preferences_writer = Some(Box::new(move |ui| config::save_ui(&path, ui)));
+            }
             app.set_startup_update_check(true);
             app.set_system_fonts(env.system_fonts());
             app.autosave_dir = env.config_dir.as_ref().map(|d| d.join("Autosave"));
@@ -263,6 +266,7 @@ fn main() -> eframe::Result {
             app.preset_dir = env.config_dir.as_ref().map(|d| d.join("Presets"));
             app.extra.ui_scale = prefs.ui_scale;
             app.ui = prefs;
+            app.report_audio_configuration();
             if let Some(port) = control_port {
                 let rx = control_server::start(port, cc.egui_ctx.clone());
                 app = app.with_control(rx);

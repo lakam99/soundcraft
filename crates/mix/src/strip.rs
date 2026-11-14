@@ -18,6 +18,7 @@ pub(crate) struct BusBuf {
 }
 
 pub(crate) struct PluginSlot {
+    hybrid: Option<Arc<soundcraft_dsp::hybrid::Patch>>,
     pub(crate) id: String,
     /// Channel count the plugin was prepared for.
     pub(crate) ch: usize,
@@ -198,7 +199,7 @@ impl SlotCtx<'_> {
             let state = if third { ins.state_bytes() } else { None };
             create_instance_for(&ins.plugin, state.as_deref(), self.sr, self.mb, ch, self.offline).map(|n| n.plugin)
         }?;
-        Some(PluginSlot { id: ins.plugin.clone(), ch, plugin, applied: Vec::new(), lanes: Vec::new(), failed: false })
+        Some(PluginSlot { hybrid: None, id: ins.plugin.clone(), ch, plugin, applied: Vec::new(), lanes: Vec::new(), failed: false })
     }
 }
 
@@ -547,6 +548,13 @@ pub(crate) fn apply_params(slot: &mut PluginSlot, ins: &soundcraft_model::Insert
 
 /// Sends each stored param (as mapped by `value`) to the plugin when it changed since last time.
 fn apply_values(slot: &mut PluginSlot, ins: &soundcraft_model::Insert, mut value: impl FnMut(&str, f32) -> f32) {
+    if let Some(patch) = &ins.hybrid
+        && slot.hybrid.as_ref().is_none_or(|old| !Arc::ptr_eq(old, patch))
+    {
+        slot.plugin.set_hybrid_patch(Arc::clone(patch));
+        slot.hybrid = Some(Arc::clone(patch));
+        slot.applied.fill(f32::NAN);
+    }
     if slot.applied.len() != ins.params.len() {
         slot.applied = vec![f32::NAN; ins.params.len()];
     }
@@ -596,7 +604,7 @@ mod apply_params_tests {
     fn recorder() -> (PluginSlot, Arc<Mutex<Vec<(String, f32)>>>) {
         let sets = Arc::new(Mutex::new(Vec::new()));
         let plugin = Box::new(Recorder { inner: soundcraft_dsp::create("gain").unwrap(), sets: Arc::clone(&sets) });
-        (PluginSlot { id: "gain".into(), ch: 2, plugin, applied: Vec::new(), lanes: Vec::new(), failed: false }, sets)
+        (PluginSlot { hybrid: None, id: "gain".into(), ch: 2, plugin, applied: Vec::new(), lanes: Vec::new(), failed: false }, sets)
     }
 
     fn lane(slot: u8, param: &str, point: Option<f32>) -> AutomationLane {

@@ -33,6 +33,7 @@ pub mod palette;
 pub mod panels;
 pub mod preferences;
 pub mod shortcuts;
+pub mod sound_lab;
 pub mod theme;
 pub mod toolbar;
 pub mod updates_ui;
@@ -297,6 +298,9 @@ pub enum Gesture {
 }
 
 pub struct SoundApp {
+    pub sound_lab: sound_lab::Runtime,
+    /// Desktop host's atomic preferences writer. Absent for intentionally ephemeral hosts.
+    pub preferences_writer: Option<Box<dyn Fn(&UiState) -> Result<(), String>>>,
     pub live_midi: crate::live_midi::Runtime,
     pub workspace: workspace::Runtime,
     assistant: assistant::Runtime,

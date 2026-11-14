@@ -16,6 +16,8 @@ impl SoundApp {
         if self.engine.transport.recording {
             return Err("stop recording before changing the audio device".into());
         }
+        self.persist_audio_configuration(&cfg)?;
+        crate::sound_lab::stop(self);
         self.ui.audio = cfg;
         let at = self.position();
         if let Some(p) = &self.player {
@@ -31,7 +33,57 @@ impl SoundApp {
         let player = soundcraft_playback::Player::with_config(self.engine.session_arc(), &self.ui.audio);
         player.locate(at);
         self.player = Some(player);
+        self.report_audio_configuration();
         Ok(())
+    }
+
+    pub(crate) fn persist_audio_configuration(&self, cfg: &soundcraft_playback::AudioConfig) -> Result<(), String> {
+        if let Some(save) = &self.preferences_writer {
+            let mut next = self.ui.clone();
+            next.audio = cfg.clone();
+            save(&next).map_err(|e| format!("Audio settings were not changed because preferences could not be saved: {e}"))?;
+        }
+        Ok(())
+    }
+    pub fn audio_configuration_warnings(&self) -> Vec<String> {
+        let mut warnings = Vec::new();
+        let cfg = &self.ui.audio;
+        if let Some(player) = &self.player {
+            if player.silent {
+                warnings.push("No output could be opened. Saved device choices are retained; reconnect or choose another device.".into());
+            }
+            if let Some(want) = &cfg.output
+                && want != &player.device_name
+            {
+                warnings
+                    .push(format!("Saved output {want} is unavailable. Currently using {}. Reconnect retries the saved output.", player.device_name));
+            }
+            if let Some(want) = &cfg.system
+                && !want.eq_ignore_ascii_case(&player.device_system)
+            {
+                warnings.push(format!("Saved audio system {want} is unavailable; currently using {}.", player.device_system));
+            }
+            if let Some(want) = cfg.sample_rate
+                && want != player.device_rate
+            {
+                warnings.push(format!("Saved rate {want} Hz; actual output {} Hz.", player.device_rate));
+            }
+            if let Some(want) = cfg.buffer_size
+                && player.device_buffer != Some(want)
+            {
+                warnings.push(format!(
+                    "Saved buffer {want} frames; device is using {}.",
+                    player.device_buffer.map_or_else(|| "its default buffer".into(), |n| format!("{n} frames"))
+                ));
+            }
+        }
+        warnings
+    }
+    pub fn report_audio_configuration(&mut self) {
+        let warnings = self.audio_configuration_warnings();
+        if !warnings.is_empty() {
+            self.ui.status = warnings.join(" ");
+        }
     }
 
     /// Open the input device once (for recording and input monitoring) and feed the player.
@@ -114,6 +166,7 @@ impl SoundApp {
 
     /// Reopen the audio devices, keeping a take in progress.
     pub fn reconnect_audio(&mut self) {
+        crate::sound_lab::stop(self);
         if self.is_playing() || self.engine.transport.recording {
             self.stop_play();
         }
@@ -126,6 +179,7 @@ impl SoundApp {
         self.live_midi.attached = false;
         self.live_midi.reset();
         self.player = Some(Player::with_config(self.engine.session_arc(), &self.ui.audio));
+        self.report_audio_configuration();
     }
 }
 

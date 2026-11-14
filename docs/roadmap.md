@@ -1,6 +1,12 @@
 # SoundCraft roadmap: milestones and what's next
 
-> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-13 · **Change:** trivial (`setup.playback_engine` applies the device buffer in the desktop app) · **Target:** Avid Pro Tools Ultimate 2026.4.1
+**Fork milestone (2026-11-13):** FORGE Hybrid brings a modular oscillator/sample/filter/drive/
+resonator/envelope/LFO graph, an analog instrument surface with physical patching, AI candidate
+build/refinement and one-edit commit, bounded audition rendering and preserved-source sampler
+derivation. Machine-local audio settings save on Apply and disclose fallback while retaining
+requested devices. Workflow and limits: [FORGE sound lab](forge-sound-lab.md).
+
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-11-13 · **Change:** minor (FORGE Hybrid, analog rack and textured patch leads, AI candidate design, persistent audio device requests) · **Target:** Avid Pro Tools Ultimate 2026.4.1
 
 Forward-looking plan. Status and numbers: [`../ROADMAP.md`](../ROADMAP.md) and
 [`target-app-parity.md`](target-app-parity.md); the ranked work list: [`gaps.md`](gaps.md).

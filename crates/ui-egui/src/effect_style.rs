@@ -74,15 +74,23 @@ pub fn knob(ui: &mut Ui, param: &ParamInfo, current: &mut f32, accent: Color32, 
         response.request_focus();
     }
     let fine = ui.input(|i| i.modifiers.shift);
-    let step = if fine { 0.001 } else { 0.01 };
+    let detent = (!param.choices.is_empty()).then(|| 1.0 / param.choices.len().saturating_sub(1).max(1) as f32);
+    let step = detent.unwrap_or(if fine { 0.001 } else { 0.01 });
     let mut normalized = param.to_normalized(*current);
     let initial_normalized = normalized;
     if response.dragged() {
+        // Preserve fractional travel between detents, so a slow turn still advances a selector.
+        let travel = response.id.with("knob_travel");
+        if !response.drag_started() {
+            normalized = ui.data_mut(|d| d.get_temp::<f32>(travel)).unwrap_or(normalized);
+        }
         normalized -= response.drag_delta().y * if fine { 0.0005 } else { 0.005 };
+        normalized = normalized.clamp(0.0, 1.0);
+        ui.data_mut(|d| d.insert_temp(travel, normalized));
     }
     if response.hovered() && ui.input(|i| i.modifiers.command || i.modifiers.ctrl) {
         let wheel = ui.input(|i| i.smooth_scroll_delta.y);
-        normalized += wheel * if fine { 0.0001 } else { 0.001 };
+        normalized += detent.map_or(wheel * if fine { 0.0001 } else { 0.001 }, |step| if wheel == 0.0 { 0.0 } else { wheel.signum() * step });
         if wheel != 0.0 {
             ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
         }

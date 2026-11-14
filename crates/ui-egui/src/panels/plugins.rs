@@ -4,6 +4,15 @@ mod effects;
 /// Draw plugin windows for instrument and insert slots that still exist, removing closed ones from the list.
 pub(super) fn plugin_windows(app: &mut SoundApp, ctx: &egui::Context) {
     let wins = app.ui.plugin_windows.clone();
+    // One FORGE surface owns the live candidate preview. Other drafts stay available by track.
+    let forge = wins
+        .iter()
+        .rev()
+        .find(|(tid, slot)| {
+            *slot == soundcraft_mix::INSTRUMENT_SLOT
+                && app.engine.session().track(*tid).and_then(|t| t.instrument.as_ref()).is_some_and(|i| i.plugin == soundcraft_dsp::hybrid::ID)
+        })
+        .map(|(tid, _)| *tid);
     let mut keep = Vec::new();
     for (tid, slot) in wins {
         // The instrument slot (an instrument track's instrument) or an insert slot.
@@ -15,6 +24,31 @@ pub(super) fn plugin_windows(app: &mut SoundApp, ctx: &egui::Context) {
             continue;
         };
         let Some(info) = crate::mix_window::plugin_info(&ins.plugin) else { continue };
+        if instrument && ins.plugin == soundcraft_dsp::hybrid::ID {
+            if forge != Some(tid) {
+                continue;
+            }
+            let mut open = true;
+            let shown = egui::Window::new(format!("{tname} · FORGE Hybrid"))
+                .id(egui::Id::unique(("plugin", tid.0, slot)))
+                .open(&mut open)
+                .title_bar(false)
+                .default_width(1040.0)
+                .max_width((ctx.content_rect().width() - 40.0).max(720.0))
+                .min_width(720.0)
+                .default_pos(egui::pos2(30.0, 50.0))
+                .frame(egui::Frame::window(&ctx.global_style()).fill(Color32::from_rgb(20, 28, 27)))
+                .show(ctx, |ui| crate::sound_lab::show(app, ui, tid));
+            if shown.is_some_and(|w| !w.inner.unwrap_or(true)) {
+                open = false;
+            }
+            if open {
+                keep.push((tid, slot));
+            } else {
+                crate::sound_lab::stop(app);
+            }
+            continue;
+        }
         let modern_effect = app.ui.modern_workspace && !instrument && effects::identity(info.id).is_some();
         let place = if instrument { "instrument".to_string() } else { char::from(b'a'.saturating_add(slot as u8)).to_string() };
         let mut open = true;
