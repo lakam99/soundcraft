@@ -27,3 +27,7 @@ The `soundlab.cables` command offers the same arrangement control to automation.
 are temporary editor layout, rather than synthesis parameters.
 
 Audio device preferences are machine-local. **Apply** saves requested system, output/input, rate and buffer immediately before replacing the active configuration. A failed preferences write leaves the working choice intact. Missing outputs may use the system fallback, but the saved request stays visible with a warning so reconnect can retry it. Named recording inputs remain strict. Opening a project does not replace these preferences.
+
+Windows audition playback was confirmed by listening through a ZOOM L-12 output on 2026-11-13.
+Automated native restart checks also restored a committed patch, its derived sampler audio, and
+the requested device preferences. Other operating systems still need hardware verification.
