@@ -9,6 +9,8 @@
 | `crates/ui-egui/src/sound_lab/view.rs` | SoundCraft contributors | Original procedural engraved legends, instrument keys, patch sockets, cables and CRT-style scope | MIT OR Apache-2.0 |
 | `crates/ui-egui/src/sound_lab/cables.rs` | SoundCraft contributors | Original cable geometry, material mapping, lighting and physical drape interactions | MIT OR Apache-2.0 |
 | `crates/dsp/src/hybrid.rs` | SoundCraft contributors | Original Copper Dawn playable synthesis patch | MIT OR Apache-2.0 |
+| `crates/ui-egui/src/sequencer/view.rs` | SoundCraft contributors | Original PULSE faceplate, engraved legends, material keys, dial indicators and step lamps; reuses the original FORGE chassis and knob materials | MIT OR Apache-2.0 |
+| `crates/midi/src/sequencer.rs` | SoundCraft contributors | Original editable step-program and chord-memory arpeggio starters | MIT OR Apache-2.0 |
 
 Every asset bundled with or committed to SoundCraft is listed here with its author, source and
 license. `cargo xtask assets` fails CI when a tracked asset file has no row.

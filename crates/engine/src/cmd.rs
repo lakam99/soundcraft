@@ -30,6 +30,7 @@ mod options;
 mod plugin_state;
 mod query;
 pub(crate) mod sampler;
+pub mod sequencer;
 mod setup_more;
 mod strip_silence;
 mod surround;
@@ -150,6 +151,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(audiosuite::specs());
         v.extend(audio_midi::specs());
         v.extend(midi::specs());
+        v.extend(sequencer::specs());
         v.extend(midi_live::specs());
         v.extend(view_more::specs());
         v.extend(track_more::specs());

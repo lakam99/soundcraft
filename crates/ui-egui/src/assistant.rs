@@ -73,6 +73,7 @@ fn info() -> &'static HostInfo {
             welcome:"Set up your inputs, edit tracks, arrange clips, or explore SoundCraft's tools.".into(),
         }, "soundcraft"));
         info.instructions.push_str(r#" For sound design, start with engine.commands {"filter":"soundlab","limit":32} and {"filter":"synth."}, then reuse the discovered schemas. Run those command IDs through engine.execute, not as new tool methods. Preserve the selected track's name, MIDI clips and notes. An empty MIDI clip does not prevent designing its instrument: explain that timeline playback needs notes rather than adding notes or abandoning patch creation."#);
+        info.instructions.push_str(" For melodies, arpeggios and drum loops, discover pulse.* and sequencer.catalog once, then inspect pulse.inspect. Design FORGE's sound with soundlab.preview and its pattern with pulse.preview or pulse.steps. A complete program or up to 64 step changes can be sent in one call; never edit notes one at a time. Preserve existing MIDI: pulse.new creates a separate part. Arp has explicit chord memory, order and octave span; latch captures held MIDI keys only when requested. Drum lanes require a drum kit (built-in drum_synth) or drum sampler; do not replace an existing melodic sound silently. Run only when asked to audition. Edits stop preview safely; Run again to hear them. Wait for user acceptance before pulse.commit/soundlab.commit. Before sampler derivation, Store both accepted candidates, derive with soundlab.to_sampler, then pulse.print to the returned sampler track at an explicit position; preserve the source and avoid doubling overlapping parts. MIDI values are ticks; timeline positions are samples. Never claim to have heard a generated pattern.");
         info
     })
 }
@@ -138,7 +139,7 @@ impl Host for Adapter<'_> {
     }
     fn poll_tool(&mut self, pending: &mut Pending) -> Result<Option<Value>, String> {
         if pending.context {
-            let summary = json!({"session":soundcraft_engine::inspect::session(&self.app.engine,false),"inputs":self.app.engine.session().inputs,"audio_device":self.app.ui.audio,"sound_lab":crate::sound_lab::summary(self.app)});
+            let summary = json!({"session":soundcraft_engine::inspect::session(&self.app.engine,false),"inputs":self.app.engine.session().inputs,"audio_device":self.app.ui.audio,"sound_lab":crate::sound_lab::summary(self.app),"sequencer":crate::sequencer::summary(self.app),"sequencer":crate::sequencer::summary(self.app)});
             return Ok(Some(json!([{"type":"input_text","text":summary.to_string()}])));
         }
         if crate::control::gesture_pending(self.app) {

@@ -505,6 +505,30 @@ impl Plugin for Keys {
     fn note_on(&mut self, _offset: usize, note: u8, velocity: u8) {
         self.heard.lock().unwrap().push((note, velocity));
     }
+    fn note_off(&mut self, _offset: usize, note: u8) {
+        self.heard.lock().unwrap().push((note, 0));
+    }
+}
+
+#[test]
+fn a_pattern_note_extended_past_a_part_releases_before_its_final_block_ends() {
+    let mut s = Session::default();
+    let t = s.add_track(TrackKind::Instrument, ChannelFormat::Stereo, None);
+    s.track_mut(t).unwrap().instrument = Some(Insert::new("clap:test.keys"));
+    let seq = soundcraft_midi::Sequence {
+        notes: vec![soundcraft_midi::Note { pitch: 60, velocity: 100, release_velocity: 64, channel: 0, start: 0, length: 960 }],
+        ..Default::default()
+    };
+    let cid = s.new_clip_id();
+    s.track_mut(t).unwrap().playlist_mut().unwrap().clips.push(Clip::midi(cid, "Tied pattern", 0, 512, seq));
+    let heard = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let keys = Keys { inner: soundcraft_dsp::create("gain").unwrap(), heard: Arc::clone(&heard) };
+    let mut mix = MixEngine::new(48000.0, 512);
+    mix.set_external_instances(true);
+    mix.adopt(vec![PreparedInstance { track: t, slot: INSTRUMENT_SLOT, id: "clap:test.keys".into(), ch: 2, plugin: Box::new(keys) }]);
+    render_block(&mut mix, &s, 0);
+    render_block(&mut mix, &s, 512);
+    assert_eq!(*heard.lock().unwrap(), [(60, 100), (60, 0)]);
 }
 
 #[test]

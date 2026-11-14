@@ -76,6 +76,24 @@ fn actions(app: &mut SoundApp, ui: &mut Ui) {
         view(app, ui, "Browser · F5", "workspace.browser", app.ui.show_browser);
         view(app, ui, "Mix · F3", "window.toggle_mix_edit", app.ui.show_mix && !app.ui.mix_separate);
         view(app, ui, "MIDI · F2", "window.midi_editor", app.ui.show_midi_editor);
+        action(
+            app,
+            ui,
+            "workspace.pulse",
+            "PULSE",
+            if app
+                .engine
+                .session()
+                .edit
+                .selected_clips
+                .iter()
+                .any(|id| app.engine.session().find_clip(*id).is_some_and(|(_, c)| c.step_sequencer.is_some()))
+            {
+                "pulse.open"
+            } else {
+                "pulse.new"
+            },
+        );
         view(app, ui, "AI Chat", "ai.chat", app.ui.show_ai_chat);
     });
 }

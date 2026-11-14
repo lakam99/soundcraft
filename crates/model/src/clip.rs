@@ -102,6 +102,9 @@ pub struct Clip {
     /// Length (samples, > 0).
     pub length: Samples,
     pub content: ClipContent,
+    /// Editable PULSE program. The MIDI content remains portable and playable without this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_sequencer: Option<std::sync::Arc<soundcraft_midi::sequencer::Program>>,
     /// Static clip gain in dB.
     #[serde(default)]
     pub gain_db: f32,
@@ -154,6 +157,7 @@ impl Clip {
             start,
             length: length.max(1),
             content: ClipContent::Audio { source, offset },
+            step_sequencer: None,
             gain_db: 0.0,
             gain_env: Vec::new(),
             fade_in: Fade::default(),

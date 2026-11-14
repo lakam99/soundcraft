@@ -498,6 +498,17 @@ impl Engine {
         }
         match result {
             Ok(v) => {
+                // MIDI step programs follow the musical clock. Reflow their sample extent in
+                // this same undo transaction so slower tempi cannot truncate the final notes.
+                if (self.doc.tempo != before.tempo || self.doc.sample_rate != before.sample_rate || id.starts_with("clip."))
+                    && let Err(error) = cmd::sequencer::reflow(self)
+                {
+                    self.doc = before;
+                    self.revision = rev.wrapping_add(1);
+                    self.dirty = dirty;
+                    (self.clipboard, self.messages, self.transport_requests, self.last_selection) = side_effects;
+                    return Err(error);
+                }
                 cmd::remember_selection(self, &before);
                 if spec.undoable && !Arc::ptr_eq(&before, &self.doc) && !continuing_take {
                     self.push_undo(spec.label, before);

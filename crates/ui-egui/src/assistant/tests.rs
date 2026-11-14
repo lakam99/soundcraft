@@ -35,6 +35,39 @@ fn batch_renames_forty_tracks_in_one_tool_call_with_normal_undo() {
 }
 
 #[test]
+fn assistant_builds_a_sequencer_candidate_in_one_call_without_mutating_music() {
+    let mut app = app();
+    app.ui.ai.attach_frames = false;
+    app.run("pulse.new", json!({"kind":"arp"})).unwrap();
+    let before = app.engine.session_arc();
+    let revision = app.engine.revision;
+    let mut program = soundcraft_midi::sequencer::Program::default();
+    program.banks[0].length = 64;
+    let l = &mut program.banks[0].lanes[0];
+    l.mode = soundcraft_midi::sequencer::Mode::Arp;
+    l.steps = vec![soundcraft_midi::sequencer::Step { on: true, ..Default::default() }; 64];
+    *app.assistant.panel.prompt_mut() = "Build a 64-step minor arpeggio candidate; preserve the sound".into();
+    program.banks[0].lanes[0].chord = vec![0, 3, 7];
+    let mut turn = 0;
+    with_panel(&mut app,|panel,host|panel.send_with(host,&egui::Context::default(),move|_|{
+        let call=match turn {
+            0=>Some(("engine.commands",json!({"filter":"pulse.","limit":32}))),
+            1=>Some(("engine.execute",json!({"command":"pulse.inspect","params":{}}))),
+            2=>Some(("engine.execute",json!({"command":"pulse.preview","params":{"base_revision":revision,"program":program}}))),
+            _=>None,
+        };turn+=1;
+        if let Some((method,params))=call {Ok(json!({"status":"completed","output":[{"type":"function_call","call_id":format!("pattern{turn}"),"name":"soundcraft","arguments":json!({"method":method,"params_json":params.to_string()}).to_string()}]}))}
+        else {Ok(reply("The minor arpeggio candidate is ready. Press RUN to try it and STORE to keep it."))}
+    })).unwrap().unwrap();
+    finish(&mut app);
+    assert!(Arc::ptr_eq(&before, &app.engine.session_arc()));
+    let candidate = app.run("pulse.inspect", json!({})).unwrap();
+    assert_eq!(candidate["program"]["banks"][0]["length"], 64);
+    assert_eq!(candidate["candidate"], true);
+    assert_eq!(app.assistant.panel.transcript().iter().filter(|(role, _)| role == "Tool").count(), 3);
+}
+
+#[test]
 fn walkthrough_advances_only_after_each_real_input_edit() {
     use egui_kittest::kittest::Queryable;
     let mut app = app();

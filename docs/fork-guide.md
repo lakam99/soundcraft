@@ -24,6 +24,11 @@ style; choices are saved per effect with editor preferences.
 the original panel arrangement there, and each workspace remembers its own
 layout. See [workspace design and workflows](workspace-ux.md).
 
+**PULSE** opens the analog step sequencer for the selected part, or creates a separate playable
+part. Design melodies, chord-memory arpeggios and multi-lane drum loops with physical keys and
+knobs, preview through FORGE or another instrument, then Store or Print MIDI. The assistant can
+build complete programs or edit 64 steps at once. See [PULSE workflows](pulse-sequencer.md).
+
 ## Mixer panel
 
 **Window → Mix** opens a resizable, dockable panel below the timeline. The bottom

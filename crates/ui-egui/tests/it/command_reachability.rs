@@ -91,6 +91,14 @@ fn every_command_has_a_ui_path() {
 }
 
 #[test]
+fn pulse_creation_opening_and_midi_handoff_are_actual_menu_entries() {
+    let commands = menu_commands();
+    for id in ["pulse.new", "pulse.open", "pulse.detach"] {
+        assert!(commands.contains(id), "{id} needs a real menu entry");
+    }
+}
+
+#[test]
 fn playback_engine_menu_opens_the_window_instead_of_running_the_command() {
     let extra = menus::ui_aliases();
     assert_eq!(catalog::implemented_by("Setup > Playback Engine...", &extra).as_deref(), Some("window.playback_engine"));
