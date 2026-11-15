@@ -1,5 +1,9 @@
 # Where SoundCraft falls short of Pro Tools
 
+**Fork fix (2026-11-15):** Shared AI command knowledge survives compression and
+remembered history, with bounded schema references and combined targeted discovery.
+This reduces repeated catalog calls; it does not change the editor's action limits.
+
 **Fork fix (2026-11-14):** AI discovery returns topic indexes and filtered parameter pages, while
 legacy saved catalogs shrink locally before summary requests. This removes catalog-driven
 compaction loops; bounded summary retries preserve history on failure. Model-driven sound

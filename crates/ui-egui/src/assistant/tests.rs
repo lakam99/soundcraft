@@ -266,7 +266,7 @@ fn trumpet_request_discovers_bounded_schemas_and_previews_without_changing_midi(
                 assert!(output["result"]["next"].is_null(),"All needed workflow schemas must arrive in one call");
             }
             let call=match turn {
-                0=>Some(("engine.commands",json!({"filters":["synth.catalog","soundlab.inspect","soundlab.preview"],"limit":16}))),
+                0=>Some(("engine.commands",json!({"filters":["synth.catalog","soundlab.inspect","soundlab.preview"],"exact":true,"limit":16}))),
                 1=>Some(("engine.execute",json!({"command":"synth.catalog","params":{}}))),
                 2=>Some(("engine.execute",json!({"command":"soundlab.inspect","params":{"track":track.0}}))),
                 3=>Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}}))),

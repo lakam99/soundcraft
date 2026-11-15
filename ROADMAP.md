@@ -1,5 +1,9 @@
 # SoundCraft roadmap
 
+**Fork fix (2026-11-15):** AI chat reuses learned command schemas across questions,
+compression and saved history. A compact workflow map and combined discovery queries
+reduce catalog calls; live project state is still inspected before edits.
+
 **Fork fix (2026-11-14):** AI command discovery uses a compact topic index and filtered schema
 pages. Oversized saved catalogs are reduced locally, and summary output exhaustion has one
 bounded retry while preserving conversation history. Sound design preserves existing MIDI
