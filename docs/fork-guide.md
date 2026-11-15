@@ -1,5 +1,16 @@
 # SoundCraft fork guide
 
+## Assistant command knowledge
+
+The assistant reuses command parameters it has already learned, including after
+conversation compression and when remembered chat history is restored. It starts
+with a compact workflow map for routing, MIDI, FORGE, PULSE, mixing and export.
+Missing command schemas can be fetched together in one discovery call; it does
+not need to enumerate the editor for each question. The retained schema reference
+is bounded, and current project IDs, selection and availability are still checked
+against the live editor. An unknown-command or parameter error can refresh only
+the affected schema. The normal tool limit and Undo behavior are unchanged.
+
 ## Modern workspace
 
 The default workspace puts Audio track, Instrument track and Import above the

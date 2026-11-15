@@ -12,7 +12,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Commit the verified source before packaging' }
 $sourceCommit = & git -C $projectRoot rev-parse HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Cannot identify package source' }
 $pluginCommit = & git -C $pluginRoot rev-parse HEAD
-if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne '525d1118f073f7b01e1fe9881a0c81fc497d9d05') { throw 'Unexpected shared plugin license source' }
+# License files must come from the exact shared plugin revision linked by this editor.
+if ($LASTEXITCODE -ne 0 -or $pluginCommit -ne '95ae9a3ce1ef2027d0073e389cc4308b48b09a89') { throw 'Unexpected shared plugin license source' }
 & git -C $pluginRoot diff --quiet HEAD --
 if ($LASTEXITCODE -ne 0) { throw 'Shared plugin license source must be clean' }
 $releaseRoot = Join-Path $projectRoot "dist/fork-$Version"
