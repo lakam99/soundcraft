@@ -257,22 +257,19 @@ fn trumpet_request_discovers_bounded_schemas_and_previews_without_changing_midi(
         with_panel(&mut app,|panel,host|panel.send_with(host,&egui::Context::default(),move|body|{
             assert!(!body["tools"].as_array().unwrap().is_empty(),"Discovery must not trigger compaction");
             assert!(body["input"].to_string().contains("keep its name and notes"));
-            if turn==1 || turn==2 || turn==3 {
+            if turn==1 {
                 let output:Value=serde_json::from_str(body["input"].as_array().unwrap().last().unwrap()["output"].as_str().unwrap()).unwrap();
-                if turn==1 {assert!(output["result"]["topics"].is_array());}
-                else {
-                    let commands=output["result"]["commands"].as_array().unwrap();
-                    let id=if turn==2 {"soundlab.preview"}else{"synth.catalog"};
+                let commands=output["result"]["commands"].as_array().unwrap();
+                for id in ["synth.catalog","soundlab.inspect","soundlab.preview"] {
                     assert!(commands.iter().any(|c|c["id"]==id && c["params"].is_string()));
                 }
+                assert!(output["result"]["next"].is_null(),"All needed workflow schemas must arrive in one call");
             }
             let call=match turn {
-                0=>Some(("engine.commands",json!({}))),
-                1=>Some(("engine.commands",json!({"filter":"soundlab","limit":32}))),
-                2=>Some(("engine.commands",json!({"filter":"synth."}))),
-                3=>Some(("engine.execute",json!({"command":"synth.catalog","params":{}}))),
-                4=>Some(("engine.execute",json!({"command":"soundlab.inspect","params":{"track":track.0}}))),
-                5=>Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}}))),
+                0=>Some(("engine.commands",json!({"filters":["synth.catalog","soundlab.inspect","soundlab.preview"],"limit":16}))),
+                1=>Some(("engine.execute",json!({"command":"synth.catalog","params":{}}))),
+                2=>Some(("engine.execute",json!({"command":"soundlab.inspect","params":{"track":track.0}}))),
+                3=>Some(("engine.execute",json!({"command":"soundlab.preview","params":{"track":track.0,"base_revision":revision,"patch":patch}}))),
                 _=>None,
             };
             turn+=1;

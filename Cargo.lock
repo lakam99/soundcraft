@@ -1222,8 +1222,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-core"
-version = "0.5.4"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=525d1118f073f7b01e1fe9881a0c81fc497d9d05#525d1118f073f7b01e1fe9881a0c81fc497d9d05"
+version = "0.5.5"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=95ae9a3ce1ef2027d0073e389cc4308b48b09a89#95ae9a3ce1ef2027d0073e389cc4308b48b09a89"
 dependencies = [
  "serde",
  "serde_json",
@@ -1231,8 +1231,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-egui"
-version = "0.5.4"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=525d1118f073f7b01e1fe9881a0c81fc497d9d05#525d1118f073f7b01e1fe9881a0c81fc497d9d05"
+version = "0.5.5"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=95ae9a3ce1ef2027d0073e389cc4308b48b09a89#95ae9a3ce1ef2027d0073e389cc4308b48b09a89"
 dependencies = [
  "craft-ai-chat-core",
  "craft-ai-chat-native",
@@ -1245,8 +1245,8 @@ dependencies = [
 
 [[package]]
 name = "craft-ai-chat-native"
-version = "0.5.4"
-source = "git+https://github.com/lakam99/craft-ai-chat?rev=525d1118f073f7b01e1fe9881a0c81fc497d9d05#525d1118f073f7b01e1fe9881a0c81fc497d9d05"
+version = "0.5.5"
+source = "git+https://github.com/lakam99/craft-ai-chat?rev=95ae9a3ce1ef2027d0073e389cc4308b48b09a89#95ae9a3ce1ef2027d0073e389cc4308b48b09a89"
 dependencies = [
  "craft-ai-chat-core",
  "keyring",
@@ -3918,7 +3918,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
