@@ -1,6 +1,7 @@
 //! SoundCraft adapter for the shared native AI chat. Session edits use normal editor commands.
 use crate::{ControlRequest, SoundApp};
-use craft_ai_chat_egui::{CredentialProfile, Host, HostInfo, Panel, Preferences, ToolCall};
+use craft_ai_chat_egui::client::Panel;
+use craft_ai_chat_egui::{CredentialProfile, Host, HostInfo, Preferences, ToolCall};
 use serde_json::{Value, json};
 use std::sync::{Arc, mpsc};
 

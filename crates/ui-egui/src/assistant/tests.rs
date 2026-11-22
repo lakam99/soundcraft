@@ -111,7 +111,7 @@ fn walkthrough_advances_only_after_each_real_input_edit() {
     }
     h.run_steps(4);
     let status = command(h.state_mut(), "ai.status", &json!({})).unwrap().unwrap();
-    assert_eq!(status["highlights"][0]["id"], "inputs.add.stereo");
+    assert_eq!(status["highlights"][0]["id"], "inputs.add.stereo", "{status}");
     assert_eq!(status["highlights"][0]["number"], 2);
     assert_eq!(h.state().engine.session().inputs.len(), initial + 1);
     if let Some(dir) = std::env::var_os("CRAFT_AI_EDITOR_FIXTURES") {
